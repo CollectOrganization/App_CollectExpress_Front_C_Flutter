@@ -30,10 +30,17 @@ import 'core/widgets/app_menu_drawer.dart';
 //import 'features/auth/presentation/pages/cadastro_page.dart';
 
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Aviso ao carregar .env: $e");
+  }
   runApp(const CollectApp());
 }
 
@@ -50,10 +57,11 @@ class CollectApp extends StatelessWidget {
         textTheme: GoogleFonts.poppinsTextTheme(),
       ),
       home: const LoginPage(),
-        routes: {
-          '/login': (_) => const LoginPage(),
-          '/cadastro': (_) => const CadastroPage(),
-        },
+      routes: {
+        '/home': (_) => const HomePage(),
+        '/login': (_) => const LoginPage(),
+        '/cadastro': (_) => const CadastroPage(),
+      },
     );
   }
 }
