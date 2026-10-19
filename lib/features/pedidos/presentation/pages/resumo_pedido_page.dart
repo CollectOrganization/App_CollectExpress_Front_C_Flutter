@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
@@ -111,7 +112,7 @@ class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _PedidoBottomNavigation(),
+      bottomNavigationBar: const AppBottomNavigation(currentIndex: 2),
     );
   }
 
@@ -472,39 +473,6 @@ class _SustainabilityFooter extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _PedidoBottomNavigation extends StatelessWidget {
-  const _PedidoBottomNavigation();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 2,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      onTap: (_) {},
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
-        ),
-      ],
     );
   }
 }

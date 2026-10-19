@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/app_bottom_navigation.dart';
 
 import 'cacamba_details_page.dart';
 
@@ -55,6 +56,7 @@ class _CacambasPageState extends State<CacambasPage> {
     return Scaffold(
       drawerScrimColor: const Color(0xD9000000),
       endDrawer: const AppMenuDrawer(),
+      bottomNavigationBar: const AppBottomNavigation(currentIndex: 1),
       body: SafeArea(
         bottom: false,
         child: CustomScrollView(
@@ -170,7 +172,6 @@ class _CacambasPageState extends State<CacambasPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const CacambasBottomNavigation(),
     );
   }
 }
@@ -385,37 +386,3 @@ class SustainabilityFooter extends StatelessWidget {
   }
 }
 
-class CacambasBottomNavigation extends StatelessWidget {
-  const CacambasBottomNavigation({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 1,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      onTap: (_) {
-        // A navegação será implementada posteriormente.
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
-        ),
-      ],
-    );
-  }
-}

@@ -261,7 +261,12 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
 
-      Navigator.of(context).pushReplacementNamed('/home');
+      final tipoPerfil = usuario?['tipo_perfil']?.toString().toUpperCase();
+      if (tipoPerfil == 'ADMIN') {
+        Navigator.of(context).pushReplacementNamed('/admin');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
     } catch (e) {
       if (!mounted) return;
 

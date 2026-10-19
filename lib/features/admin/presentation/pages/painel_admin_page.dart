@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/app_bottom_navigation.dart';
+import '../../../auth/data/auth_service.dart';
 
 class PainelAdminPage extends StatelessWidget {
   const PainelAdminPage({super.key});
@@ -34,7 +36,7 @@ class PainelAdminPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const AppBottomNavigation(currentIndex: 3),
     );
   }
 }
@@ -97,35 +99,41 @@ class _WelcomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Olá, João da Silva!',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.7,
-                ),
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: AuthService.currentUserNotifier,
+      builder: (context, user, _) {
+        final nome = user?['nome_completo'] ?? 'Administrador';
+        return Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Olá, $nome!',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Painel de Controle • CollectExpress Marketplace',
+                    style: TextStyle(color: Colors.black54, fontSize: 12),
+                  ),
+                ],
               ),
-              SizedBox(height: 4),
-              Text(
-                'Caçambas São Paulo Express • CNPJ: 12.345.678/0001-90',
-                style: TextStyle(color: Colors.black54, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(width: 14),
-        CircleAvatar(
-          radius: 30,
-          backgroundColor: Color(0xFFE0E0E0),
-          child: Icon(Icons.person, size: 38, color: Colors.black54),
-        ),
-      ],
+            ),
+            const SizedBox(width: 14),
+            const CircleAvatar(
+              radius: 30,
+              backgroundColor: Color(0xFFEAF6E8),
+              child: Icon(Icons.admin_panel_settings, size: 36, color: AppColors.green),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -427,39 +435,6 @@ class _OrderCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AdminBottomNavigation extends StatelessWidget {
-  const _AdminBottomNavigation();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      onTap: (_) {},
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
-        ),
-      ],
     );
   }
 }

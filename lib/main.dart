@@ -3,33 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_menu_drawer.dart';
-//import 'features/cacambas/presentation/pages/cacambas_page.dart';
-
-//import 'features/admin/presentation/pages/painel_admin_page.dart';
-
-//import 'features/admin/presentation/pages/cadastrar_cacamba_page.dart';
-
-//import 'features/admin/presentation/pages/minhas_cacambas_page.dart';
-
-//import 'features/admin/presentation/pages/gestao_pedidos_page.dart';
-
-//import 'features/admin/presentation/pages/perfil_loja_page.dart';
-
-//import 'features/admin/presentation/pages/admin_geral_page.dart';
-
-//import 'features/admin/presentation/pages/gestao_usuarios_page.dart';
-
-//import 'features/admin/presentation/pages/gestao_parceiros_page.dart';
-
-//import 'features/admin/presentation/pages/relatorio_financeiro_page.dart';
-
-//import 'features/admin/presentation/pages/configuracoes_admin_page.dart';
-
-//import 'features/parceiros_reciclagem/presentation/pages/detalhes_material_page.dart';
-
-//import 'features/auth/presentation/pages/cadastro_page.dart';
-
-
+import 'core/widgets/app_bottom_navigation.dart';
+import 'features/cacambas/presentation/pages/cacambas_page.dart';
+import 'features/admin/presentation/pages/painel_admin_page.dart';
+import 'features/admin/presentation/pages/gestao_pedidos_page.dart';
+import 'features/pedidos/presentation/pages/resumo_pedido_page.dart';
+import 'features/auth/data/auth_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/login_page.dart';
@@ -41,6 +20,7 @@ void main() async {
   } catch (e) {
     debugPrint("Aviso ao carregar .env: $e");
   }
+  await AuthService.init();
   runApp(const CollectApp());
 }
 
@@ -61,6 +41,10 @@ class CollectApp extends StatelessWidget {
         '/home': (_) => const HomePage(),
         '/login': (_) => const LoginPage(),
         '/cadastro': (_) => const CadastroPage(),
+        '/cacambas': (_) => const CacambasPage(),
+        '/pedidos': (_) => const ResumoPedidoPage(),
+        '/admin': (_) => const PainelAdminPage(),
+        '/admin/pedidos': (_) => const GestaoPedidosPage(),
       },
     );
   }
@@ -573,38 +557,3 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-class AppBottomNavigation extends StatelessWidget {
-  const AppBottomNavigation({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      selectedFontSize: 11,
-      unselectedFontSize: 11,
-      onTap: (_) {},
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
-        ),
-      ],
-    );
-  }
-}
