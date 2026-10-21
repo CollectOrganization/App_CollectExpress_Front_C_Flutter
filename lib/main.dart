@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_colors.dart';
@@ -46,7 +47,7 @@ import 'features/admin_auth/presentation/pages/admin_register_page.dart';
 import 'core/widgets/app_bottom_navigation.dart';
 
 void main() {
-  runApp(const CollectApp());
+  runApp(const ProviderScope(child: CollectApp()));
 }
 
 class CollectApp extends StatelessWidget {

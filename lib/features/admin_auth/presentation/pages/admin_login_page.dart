@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
-import '../../data/admin_auth_service.dart';
+import '../../../auth/data/sessao_provider.dart';
 
-class AdminLoginPage extends StatefulWidget {
+class AdminLoginPage extends ConsumerStatefulWidget {
   const AdminLoginPage({super.key});
 
   @override
-  State<AdminLoginPage> createState() => _AdminLoginPageState();
+  ConsumerState<AdminLoginPage> createState() => _AdminLoginPageState();
 }
 
-class _AdminLoginPageState extends State<AdminLoginPage> {
+class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _service = AdminAuthService();
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -215,28 +216,27 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     setState(() => _loading = true);
 
     try {
-      final session = await _service.login(
+      final sessao = ref.read(sessaoProvider.notifier);
+      final usuario = await sessao.entrar(
         email: _emailController.text,
-        password: _passwordController.text,
+        senha: _passwordController.text,
       );
 
-      if (!mounted) return;
-
-      if (session.role != 'admin' &&
-          session.role != 'super_admin' &&
-          session.role != 'platform_admin') {
-        await _service.logout();
-        throw const AdminAuthException(
+      if (!usuario.isAdmin) {
+        await sessao.sair();
+        throw const ApiException(
           'Este usuário não possui permissão administrativa.',
         );
       }
+
+      if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.adminHome,
         (_) => false,
       );
-    } on AdminAuthException catch (error) {
+    } on ApiException catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

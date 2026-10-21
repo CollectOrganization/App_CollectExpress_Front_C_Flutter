@@ -55,3 +55,5 @@ git ls-files .env
 
 git rm --cached .env
 git commit -m "Remove credenciais do versionamento"
+# Variáveis locais (a URL da API vem de --dart-define)
+.env
