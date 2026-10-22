@@ -1,16 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
+import '../../../auth/data/sessao_provider.dart';
+import '../../data/admin_repository.dart';
+import '../../domain/models/admin_dashboard.dart';
 
-class AdminGeralPage extends StatelessWidget {
+final _dashboardProvider = FutureProvider.autoDispose<AdminDashboard>((ref) {
+  return ref.watch(adminRepositoryProvider).dashboard();
+});
+
+final _pedidosRecentesProvider = FutureProvider.autoDispose<List<Aluguel>>((
+  ref,
+) async {
+  final pagina = await ref.watch(adminRepositoryProvider).listarPedidos();
+  final pedidos = [...pagina.itens]
+    ..sort(
+      (a, b) =>
+          (b.dataPedido ?? DateTime(0)).compareTo(a.dataPedido ?? DateTime(0)),
+    );
+  return pedidos.take(3).toList();
+});
+
+class AdminGeralPage extends ConsumerWidget {
   const AdminGeralPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nome = ref.watch(sessaoProvider).value?.nomeCompleto;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       endDrawer: const AppMenuDrawer(),
@@ -23,14 +48,22 @@ class AdminGeralPage extends StatelessWidget {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 30, 18, 70),
               sliver: SliverList(
-                delegate: SliverChildListDelegate(const [
-                  _WelcomeSection(),
-                  SizedBox(height: 26),
-                  _MetricsGrid(),
-                  SizedBox(height: 26),
-                  _RevenueChart(),
-                  SizedBox(height: 26),
-                  _RecentActivity(),
+                delegate: SliverChildListDelegate([
+                  _WelcomeSection(nome: nome),
+                  const SizedBox(height: 26),
+                  AsyncValueView(
+                    value: ref.watch(_dashboardProvider),
+                    onRetry: () => ref.invalidate(_dashboardProvider),
+                    data: (dashboard) => Column(
+                      children: [
+                        _MetricsGrid(dashboard: dashboard),
+                        const SizedBox(height: 26),
+                        _OrdersChart(pontos: dashboard.pedidosAoLongoDoTempo),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  const _RecentActivity(),
                 ]),
               ),
             ),
@@ -96,30 +129,37 @@ class _AdminHeader extends StatelessWidget {
 }
 
 class _WelcomeSection extends StatelessWidget {
-  const _WelcomeSection();
+  const _WelcomeSection({this.nome});
+
+  final String? nome;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final primeiroNome = nome?.trim().split(' ').first;
+
+    return Row(
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Olá, Administrador!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                'Olá, ${primeiroNome == null || primeiroNome.isEmpty ? 'Administrador' : primeiroNome}!',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              SizedBox(height: 4),
-              Text(
+              const SizedBox(height: 4),
+              const Text(
                 'Visão geral da operação da Collect Xpress',
                 style: TextStyle(color: Colors.black54, fontSize: 13),
               ),
             ],
           ),
         ),
-        SizedBox(width: 12),
-        CircleAvatar(
+        const SizedBox(width: 12),
+        const CircleAvatar(
           radius: 29,
           backgroundColor: Color(0xFFE0E0E0),
           child: Icon(Icons.person, color: Colors.black54, size: 36),
@@ -130,38 +170,47 @@ class _WelcomeSection extends StatelessWidget {
 }
 
 class _MetricsGrid extends StatelessWidget {
-  const _MetricsGrid();
+  const _MetricsGrid({required this.dashboard});
+
+  final AdminDashboard dashboard;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: _MetricCard(label: 'Total Usuários', value: '1.247'),
+              child: _MetricCard(
+                label: 'Total Usuários',
+                value: '${dashboard.totalUsuarios}',
+              ),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
-              child: _MetricCard(label: 'Parceiros Ativos', value: '38'),
+              child: _MetricCard(
+                label: 'Parceiros Ativos',
+                value: '${dashboard.cacambeirosAtivos}',
+              ),
             ),
           ],
         ),
-        SizedBox(height: 14),
+        const SizedBox(height: 14),
         Row(
           children: [
             Expanded(
               child: _MetricCard(
-                label: 'Pedidos Hoje',
-                value: '74',
+                label: 'Total de Pedidos',
+                value: '${dashboard.totalPedidos}',
                 highlighted: true,
               ),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
+              // Só conta pedidos pagos.
               child: _MetricCard(
-                label: 'Faturamento Mês',
-                value: 'R\$ 127.450',
+                label: 'Receita Total',
+                value: formatMoney(dashboard.receitaTotal),
                 valueColor: AppColors.green,
               ),
             ),
@@ -225,15 +274,41 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _RevenueChart extends StatelessWidget {
-  const _RevenueChart();
+/// Pedidos por dia nos últimos 7 dias. A API não tem receita por dia.
+class _OrdersChart extends StatelessWidget {
+  const _OrdersChart({required this.pontos});
 
-  static const values = <double>[0.47, 0.66, 0.56, 0.90, 0.77, 1, 0.35];
+  final List<PontoGrafico> pontos;
 
-  static const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  static const _diasDaSemana = [
+    'Seg',
+    'Ter',
+    'Qua',
+    'Qui',
+    'Sex',
+    'Sáb',
+    'Dom',
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final hoje = DateUtils.dateOnly(DateTime.now());
+    final datas = [
+      for (var i = 6; i >= 0; i--) hoje.subtract(Duration(days: i)),
+    ];
+    final quantidades = [
+      for (final data in datas)
+        pontos
+            .where((p) => p.data != null && DateUtils.isSameDay(p.data, data))
+            .fold<int>(0, (total, p) => total + p.quantidade),
+    ];
+    final maximo = quantidades.fold<int>(0, (a, b) => a > b ? a : b);
+    final values = [
+      for (final quantidade in quantidades)
+        maximo == 0 ? 0.0 : quantidade / maximo,
+    ];
+    final days = [for (final data in datas) _diasDaSemana[data.weekday - 1]];
+
     return Container(
       height: 270,
       padding: const EdgeInsets.all(22),
@@ -246,13 +321,15 @@ class _RevenueChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Receita Semanal',
+            'Pedidos da Semana',
             style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Acompanhamento financeiro diário (Seg - Dom)',
-            style: TextStyle(color: Colors.black54, fontSize: 12),
+          Text(
+            maximo == 0
+                ? 'Nenhum pedido nos últimos 7 dias'
+                : 'Pedidos por dia nos últimos 7 dias',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
           const SizedBox(height: 22),
           Expanded(
@@ -271,7 +348,7 @@ class _RevenueChart extends StatelessWidget {
                             child: Container(
                               width: 24,
                               decoration: BoxDecoration(
-                                color: index == 5
+                                color: index == days.length - 1
                                     ? AppColors.green
                                     : AppColors.yellow,
                                 borderRadius: BorderRadius.circular(6),
@@ -280,7 +357,15 @@ class _RevenueChart extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${quantidades[index]}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Text(
                         days[index],
                         style: const TextStyle(
@@ -300,44 +385,51 @@ class _RevenueChart extends StatelessWidget {
   }
 }
 
-class _RecentActivity extends StatelessWidget {
+/// Os pedidos mais recentes. A API não tem um feed de atividades.
+class _RecentActivity extends ConsumerWidget {
   const _RecentActivity();
 
   @override
-  Widget build(BuildContext context) {
-    return const Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Atividade Recente',
+        const Text(
+          'Pedidos Recentes',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
         ),
-        SizedBox(height: 14),
-        _ActivityCard(
-          title: 'Novo Cadastro de Parceiro',
-          description: 'EcoCaçambas LTDA solicitou adesão ao painel.',
-          time: 'Há 10 min',
-          tag: 'Parceiro',
-          tagColor: Color(0xFF1689D8),
-          tagBackground: Color(0xFFE1F2FF),
-        ),
-        SizedBox(height: 14),
-        _ActivityCard(
-          title: 'Pedido Concluído #COL-9872',
-          description: 'Caçamba de 5m³ entregue e recolhida com sucesso.',
-          time: 'Há 25 min',
-          tag: 'Pedido',
-          tagColor: AppColors.green,
-          tagBackground: Color(0xFFE5F6E7),
-        ),
-        SizedBox(height: 14),
-        _ActivityCard(
-          title: 'Novo Usuário Registrado',
-          description: 'Carlos Eduardo Santos criou uma conta de cliente.',
-          time: 'Há 1 hora',
-          tag: 'Cadastro',
-          tagColor: Color(0xFFF29A00),
-          tagBackground: Color(0xFFFFEFDC),
+        const SizedBox(height: 14),
+        AsyncValueView(
+          value: ref.watch(_pedidosRecentesProvider),
+          onRetry: () => ref.invalidate(_pedidosRecentesProvider),
+          data: (pedidos) {
+            if (pedidos.isEmpty) {
+              return const Text(
+                'Nenhum pedido ainda.',
+                style: TextStyle(color: Colors.black54, fontSize: 13),
+              );
+            }
+
+            return Column(
+              children: [
+                for (final pedido in pedidos) ...[
+                  _ActivityCard(
+                    title: 'Pedido de ${pedido.consumidorNome ?? 'cliente'}',
+                    description: [
+                      if (pedido.cacambeiroNome != null)
+                        'Fornecedor: ${pedido.cacambeiroNome}',
+                      formatMoney(pedido.precoFinal),
+                    ].join(' · '),
+                    time: formatDate(pedido.dataPedido),
+                    tag: pedido.statusAluguel?.label ?? 'Pedido',
+                    tagColor: AppColors.green,
+                    tagBackground: const Color(0xFFE5F6E7),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );

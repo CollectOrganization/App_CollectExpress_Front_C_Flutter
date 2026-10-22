@@ -1,84 +1,78 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/cacamba.dart';
+import '../../../../core/models/pagina.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../../data/catalogo_repository.dart';
 import 'cacamba_details_page.dart';
 
-class CacambasPage extends StatefulWidget {
+typedef _Consulta = ({String? tipoResiduo, int pagina});
+
+final _cacambasProvider = FutureProvider.autoDispose
+    .family<Pagina<Cacamba>, _Consulta>((ref, consulta) {
+      return ref
+          .watch(catalogoRepositoryProvider)
+          .listarCacambas(
+            pagina: consulta.pagina,
+            tipoResiduo: consulta.tipoResiduo,
+          );
+    });
+
+class CacambasPage extends ConsumerStatefulWidget {
   const CacambasPage({super.key});
 
   @override
-  State<CacambasPage> createState() => _CacambasPageState();
+  ConsumerState<CacambasPage> createState() => _CacambasPageState();
 }
 
-class _CacambasPageState extends State<CacambasPage> {
+class _CacambasPageState extends ConsumerState<CacambasPage> {
   static const allCategory = 'Todas';
-  static const constructionCategory = 'Obras/Entulho';
-  static const cleaningCategory = 'Limpeza/Podas';
-  static const recyclingCategory = 'Recicláveis';
 
-  String selectedFilter = allCategory;
+  /// `null` = todas as categorias.
+  String? _categoria;
+  int _paginas = 1;
 
-  final List<String> filters = const [
-    allCategory,
-    constructionCategory,
-    cleaningCategory,
-    recyclingCategory,
-  ];
+  void _selecionarCategoria(String? categoria) {
+    setState(() {
+      _categoria = categoria;
+      _paginas = 1;
+    });
+  }
 
-  final List<Cacamba> cacambas = const [
-    Cacamba(
-      title: 'Caçamba 3m³ (Pequena)',
-      volume: '3m³',
-      recommendation: 'Pequenas reformas e entulho leve',
-      capacity: 'Até 3 toneladas',
-      price: 280,
-      imagePath: 'assets/images/cacamba_3m.jpg',
-      category: constructionCategory,
-    ),
-    Cacamba(
-      title: 'Caçamba 5m³ (Média)',
-      volume: '5m³',
-      recommendation: 'Reformas médias e grandes descartes',
-      capacity: 'Até 5 toneladas',
-      price: 350,
-      imagePath: 'assets/images/cacamba_5m.jpg',
-      category: constructionCategory,
-    ),
-    Cacamba(
-      title: 'Caçamba 3m³ para Podas',
-      volume: '3m³',
-      recommendation: 'Galhos, folhas e resíduos de jardinagem',
-      capacity: 'Até 3 toneladas',
-      price: 290,
-      imagePath: 'assets/images/cacamba_3m.jpg',
-      category: cleaningCategory,
-    ),
-    Cacamba(
-      title: 'Caçamba 7m³ para Recicláveis',
-      volume: '7m³',
-      recommendation: 'Papel, plástico, metal e grandes volumes',
-      capacity: 'Até 7 toneladas',
-      price: 420,
-      imagePath: 'assets/images/cacamba_7m.jpg',
-      category: recyclingCategory,
-    ),
-  ];
-
-  List<Cacamba> get filteredCacambas {
-    if (selectedFilter == allCategory) {
-      return cacambas;
-    }
-
-    return cacambas
-        .where((cacamba) => cacamba.category == selectedFilter)
-        .toList();
+  void _recarregar() {
+    ref.invalidate(_cacambasProvider);
+    setState(() => _paginas = 1);
   }
 
   @override
   Widget build(BuildContext context) {
+    // A API não tem rota pública de categorias: os filtros vêm das
+    // categorias das caçambas da primeira página sem filtro.
+    final semFiltro = ref.watch(
+      _cacambasProvider((tipoResiduo: null, pagina: 1)),
+    );
+    final categorias = {
+      for (final cacamba in semFiltro.value?.itens ?? const <Cacamba>[])
+        cacamba.tipoResiduo,
+    }.toList()..sort();
+    final filters = <String?>[null, ...categorias];
+
+    final paginas = [
+      for (var pagina = 1; pagina <= _paginas; pagina++)
+        ref.watch(_cacambasProvider((tipoResiduo: _categoria, pagina: pagina))),
+    ];
+    final primeira = paginas.first;
+    final cacambas = [for (final pagina in paginas) ...?pagina.value?.itens];
+    final carregandoMais = paginas.length > 1 && paginas.last.isLoading;
+    final temProxima = paginas.last.value?.temProxima ?? false;
+
     return Scaffold(
       drawerScrimColor: const Color(0xD9000000),
       endDrawer: const AppMenuDrawer(),
@@ -141,17 +135,13 @@ class _CacambasPageState extends State<CacambasPage> {
                         },
                         itemBuilder: (context, index) {
                           final filter = filters[index];
-                          final selected = selectedFilter == filter;
+                          final selected = _categoria == filter;
 
                           return ChoiceChip(
-                            label: Text(filter),
+                            label: Text(filter ?? allCategory),
                             selected: selected,
                             showCheckmark: false,
-                            onSelected: (_) {
-                              setState(() {
-                                selectedFilter = filter;
-                              });
-                            },
+                            onSelected: (_) => _selecionarCategoria(filter),
                             selectedColor: AppColors.green,
                             backgroundColor: AppColors.lightGray,
                             side: BorderSide.none,
@@ -172,25 +162,34 @@ class _CacambasPageState extends State<CacambasPage> {
                 ),
               ),
             ),
-            if (filteredCacambas.isEmpty)
+            if (primeira.hasError || (primeira.isLoading && !primeira.hasValue))
+              SliverToBoxAdapter(
+                child: AsyncValueView(
+                  value: primeira,
+                  onRetry: _recarregar,
+                  data: (_) => const SizedBox.shrink(),
+                ),
+              )
+            else if (cacambas.isEmpty)
               const SliverToBoxAdapter(child: _EmptyResult())
-            else
+            else ...[
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 sliver: SliverList.separated(
-                  itemCount: filteredCacambas.length,
+                  itemCount: cacambas.length,
                   separatorBuilder: (_, _) {
                     return const SizedBox(height: 18);
                   },
                   itemBuilder: (context, index) {
-                    final cacamba = filteredCacambas[index];
+                    final cacamba = cacambas[index];
 
                     return CacambaCard(
                       cacamba: cacamba,
                       onRent: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => const CacambaDetailsPage(),
+                            builder: (_) =>
+                                CacambaDetailsPage(cacambaId: cacamba.id),
                           ),
                         );
                       },
@@ -198,6 +197,29 @@ class _CacambasPageState extends State<CacambasPage> {
                   },
                 ),
               ),
+              if (temProxima || carregandoMais)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: Center(
+                      child: carregandoMais
+                          ? const CircularProgressIndicator(
+                              color: AppColors.green,
+                            )
+                          : TextButton(
+                              onPressed: () => setState(() => _paginas++),
+                              child: const Text(
+                                'Carregar mais',
+                                style: TextStyle(
+                                  color: AppColors.green,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+            ],
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.only(top: 28),
@@ -255,22 +277,9 @@ class CacambaCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(13),
             child: AspectRatio(
               aspectRatio: 2.55,
-              child: Image.asset(
-                cacamba.imagePath,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) {
-                  return Container(
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        size: 52,
-                        color: Colors.black38,
-                      ),
-                    ),
-                  );
-                },
+              child: CacambaImage(
+                fotoUrl: cacamba.fotoUrl,
+                tamanhoM3: cacamba.tamanhoM3,
               ),
             ),
           ),
@@ -280,7 +289,7 @@ class CacambaCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  cacamba.title,
+                  cacamba.nome,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -299,7 +308,7 @@ class CacambaCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  cacamba.volume,
+                  formatVolume(cacamba.tamanhoM3),
                   style: const TextStyle(
                     color: Color(0xFF6B9F46),
                     fontSize: 12,
@@ -310,21 +319,7 @@ class CacambaCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _CategoryBadge(category: cacamba.category),
-          const SizedBox(height: 9),
-          Text(
-            'Recomendado para: ${cacamba.recommendation}',
-            style: const TextStyle(color: Colors.black54, fontSize: 13),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            cacamba.capacity,
-            style: const TextStyle(
-              color: AppColors.green,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          _CategoryBadge(category: cacamba.tipoResiduo),
           const SizedBox(height: 14),
           const Divider(color: AppColors.border),
           const SizedBox(height: 5),
@@ -340,7 +335,7 @@ class CacambaCard extends StatelessWidget {
                       style: TextStyle(color: Colors.black54, fontSize: 11),
                     ),
                     Text(
-                      _formatPrice(cacamba.price),
+                      formatMoney(cacamba.precoDiaria),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -374,10 +369,6 @@ class CacambaCard extends StatelessWidget {
       ),
     );
   }
-
-  static String _formatPrice(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
 }
 
 class _CategoryBadge extends StatelessWidget {
@@ -404,26 +395,6 @@ class _CategoryBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class Cacamba {
-  final String title;
-  final String volume;
-  final String recommendation;
-  final String capacity;
-  final double price;
-  final String imagePath;
-  final String category;
-
-  const Cacamba({
-    required this.title,
-    required this.volume,
-    required this.recommendation,
-    required this.capacity,
-    required this.price,
-    required this.imagePath,
-    required this.category,
-  });
 }
 
 class SustainabilityFooter extends StatelessWidget {

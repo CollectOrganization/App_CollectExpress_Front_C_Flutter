@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
+import '../validacao_senha.dart';
 import 'cadastro_cliente_page.dart';
 import 'cadastro_fornecedor_page.dart';
 import 'cadastro_parceiro_reciclagem_page.dart';
@@ -138,7 +139,7 @@ class _CadastroPageState extends State<CadastroPage> {
                             ),
                           ),
                         ),
-                        validator: _validatePassword,
+                        validator: validarSenhaCadastro,
                       ),
 
                       const SizedBox(height: 36),
@@ -237,18 +238,6 @@ class _CadastroPageState extends State<CadastroPage> {
 
     if (!isValid) {
       return 'Informe um e-mail válido';
-    }
-
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Informe sua senha';
-    }
-
-    if (value.length < 6) {
-      return 'A senha deve possuir pelo menos 6 caracteres';
     }
 
     return null;

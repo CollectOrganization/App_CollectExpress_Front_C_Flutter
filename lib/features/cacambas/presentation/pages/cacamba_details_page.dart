@@ -1,27 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/cacamba.dart';
+import '../../../../core/models/cacambeiro.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../../../auth/presentation/garantir_login.dart';
+import '../../../pedidos/data/carrinho_repository.dart';
 
+import '../../../pedidos/presentation/carrinho_provider.dart';
 import '../../../pedidos/presentation/pages/resumo_pedido_page.dart';
+import '../../data/catalogo_repository.dart';
 
 //botoes de navegação do rodapé
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class CacambaDetailsPage extends StatefulWidget {
-  const CacambaDetailsPage({super.key});
+final _cacambaProvider = FutureProvider.autoDispose.family<Cacamba, String>((
+  ref,
+  id,
+) {
+  return ref.watch(catalogoRepositoryProvider).detalheCacamba(id);
+});
+
+class CacambaDetailsPage extends ConsumerStatefulWidget {
+  const CacambaDetailsPage({super.key, required this.cacambaId});
+
+  final String cacambaId;
 
   @override
-  State<CacambaDetailsPage> createState() => _CacambaDetailsPageState();
+  ConsumerState<CacambaDetailsPage> createState() => _CacambaDetailsPageState();
 }
 
-class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
+class _CacambaDetailsPageState extends ConsumerState<CacambaDetailsPage> {
+  // Limites da API para itens do carrinho.
+  static const _quantidadeMaxima = 10;
+
   int quantity = 1;
   int selectedDays = 3;
+  bool _adicionando = false;
 
   @override
   Widget build(BuildContext context) {
+    final provider = _cacambaProvider(widget.cacambaId);
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -29,109 +55,10 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
           child: Column(
             children: [
               const _DetailsHeader(),
-              AspectRatio(
-                aspectRatio: 1.75,
-                child: Image.asset(
-                  'assets/images/cacamba_5m_detalhe.jpg',
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) {
-                    return Container(
-                      color: Colors.grey.shade300,
-                      child: const Center(
-                        child: Icon(Icons.image_outlined, size: 60),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _ProductTitle(),
-                    const SizedBox(height: 14),
-                    const Divider(),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Especificações:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'A caçamba de 5m³ é ideal para reformas de médio porte, '
-                      'remoção de terra, tijolos, concreto e azulejos. '
-                      'Entrega rápida em até 24h úteis.',
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _WasteInfoCard(
-                            title: 'PERMITIDO ✓',
-                            description: 'Argamassa, Tijolos, Concreto, Madeiras, Azulejos.',
-                            foregroundColor: AppColors.green,
-                            backgroundColor: Color(0xFFF2F8EE),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: _WasteInfoCard(
-                            title: 'PROIBIDO ✕',
-                            description:
-                                'Lixo hospitalar, Químicos, Solventes, Pneus.',
-                            foregroundColor: Colors.red,
-                            backgroundColor: Color(0xFFFFF1F1),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildQuantityField()),
-                        const SizedBox(width: 10),
-                        Expanded(child: _buildDaysField()),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 58,
-                      child: ElevatedButton.icon(
-                        onPressed: _addToCart,
-                        style: ElevatedButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: AppColors.green,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(11),
-                          ),
-                        ),
-                        icon: const Icon(Icons.shopping_bag_outlined),
-                        label: const Text(
-                          'Adicionar ao Carrinho',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 180),
-                  ],
-                ),
+              AsyncValueView(
+                value: ref.watch(provider),
+                onRetry: () => ref.invalidate(provider),
+                data: _buildContent,
               ),
               const _SustainabilityFooter(),
             ],
@@ -139,6 +66,122 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
         ),
       ),
       bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 1),
+    );
+  }
+
+  Widget _buildContent(Cacamba cacamba) {
+    return Column(
+      children: [
+        AspectRatio(
+          aspectRatio: 1.75,
+          child: CacambaImage(
+            fotoUrl: cacamba.fotoUrl,
+            tamanhoM3: cacamba.tamanhoM3,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProductTitle(cacamba: cacamba),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 14),
+              const Text(
+                'Especificações:',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Caçamba de ${formatVolume(cacamba.tamanhoM3)} para '
+                '${cacamba.tipoResiduo.toLowerCase()}. '
+                '${cacamba.disponivel ? 'Disponível para locação.' : 'Indisponível no momento.'}',
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _WasteInfoCard(
+                      title: 'PERMITIDO ✓',
+                      description: cacamba.tipoResiduo,
+                      foregroundColor: AppColors.green,
+                      backgroundColor: const Color(0xFFF2F8EE),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: _WasteInfoCard(
+                      title: 'PROIBIDO ✕',
+                      description:
+                          'Lixo hospitalar, Químicos, Solventes, Pneus.',
+                      foregroundColor: Colors.red,
+                      backgroundColor: Color(0xFFFFF1F1),
+                    ),
+                  ),
+                ],
+              ),
+              if (cacamba.cacambeiro != null) ...[
+                const SizedBox(height: 16),
+                _FornecedorInfo(fornecedor: cacamba.cacambeiro!),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildQuantityField()),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildDaysField()),
+                ],
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: ElevatedButton.icon(
+                  onPressed: cacamba.disponivel && !_adicionando
+                      ? () => _addToCart(cacamba)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    backgroundColor: AppColors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
+                  icon: _adicionando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.shopping_bag_outlined),
+                  label: Text(
+                    cacamba.disponivel
+                        ? 'Adicionar ao Carrinho'
+                        : 'Indisponível',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 180),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -177,7 +220,9 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
                 ),
               ),
               IconButton(
-                onPressed: () => setState(() => quantity++),
+                onPressed: quantity < _quantidadeMaxima
+                    ? () => setState(() => quantity++)
+                    : null,
                 icon: const Icon(Icons.add),
                 color: AppColors.green,
               ),
@@ -224,7 +269,36 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
     );
   }
 
-  void _addToCart() {
+  Future<void> _addToCart(Cacamba cacamba) async {
+    if (!await garantirLogin(context, ref)) return;
+
+    setState(() => _adicionando = true);
+
+    try {
+      await ref
+          .read(carrinhoRepositoryProvider)
+          .adicionar(
+            cacambaId: cacamba.id,
+            quantidade: quantity,
+            diasAluguel: selectedDays,
+          );
+
+      if (!mounted) return;
+      _abrirCarrinho();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      showApiError(context, error);
+
+      // A caçamba já está no carrinho: leva o cliente até lá.
+      if (error.code == 'ITEM_ALREADY_IN_CART') _abrirCarrinho();
+    } finally {
+      if (mounted) setState(() => _adicionando = false);
+    }
+  }
+
+  void _abrirCarrinho() {
+    // Se já houver um carrinho aberto mais atrás na pilha, ele recarrega.
+    ref.invalidate(carrinhoProvider);
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const ResumoPedidoPage()));
   }
@@ -279,7 +353,9 @@ class _DetailsHeader extends StatelessWidget {
 }
 
 class _ProductTitle extends StatelessWidget {
-  const _ProductTitle();
+  const _ProductTitle({required this.cacamba});
+
+  final Cacamba cacamba;
 
   @override
   Widget build(BuildContext context) {
@@ -288,10 +364,10 @@ class _ProductTitle extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Caçamba 5m³ - Entulho',
-                style: TextStyle(
+                cacamba.nome,
+                style: const TextStyle(
                   fontSize: 23,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.6,
@@ -304,35 +380,84 @@ class _ProductTitle extends StatelessWidget {
                 color: AppColors.yellow,
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: const Text(
-                'MAIS ALUGADA',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+              child: Text(
+                formatVolume(cacamba.tamanhoM3),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        const Row(
+        Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              'R\$ 350,00',
-              style: TextStyle(
+              formatMoney(cacamba.precoDiaria),
+              style: const TextStyle(
                 color: AppColors.green,
                 fontSize: 29,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            Padding(
+            const Padding(
               padding: EdgeInsets.only(left: 6, bottom: 5),
-              child: Text(
-                '/ período de 3 dias',
-                style: TextStyle(color: Colors.black54),
-              ),
+              child: Text('/ dia', style: TextStyle(color: Colors.black54)),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _FornecedorInfo extends StatelessWidget {
+  const _FornecedorInfo({required this.fornecedor});
+
+  final Cacambeiro fornecedor;
+
+  @override
+  Widget build(BuildContext context) {
+    final nota = fornecedor.notaMedia;
+    final taxa = fornecedor.taxaEntrega;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Fornecedor: ${fornecedor.nomeCompleto}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            [
+              if (nota != null)
+                '★ ${nota.toStringAsFixed(1).replaceAll('.', ',')} '
+                    '(${fornecedor.totalAvaliacoes} avaliações)'
+              else
+                'Ainda sem avaliações',
+              if (fornecedor.horarioInicio != null)
+                'Atende das ${formatHour(fornecedor.horarioInicio)} '
+                    'às ${formatHour(fornecedor.horarioFim)}',
+              if (taxa != null) 'Taxa de entrega: ${formatMoney(taxa)}',
+            ].join('\n'),
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,26 +1,76 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
+import '../../../../core/navigation/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../pedidos_format.dart';
 
 //botoes de navegação do rodapé
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
 import 'acompanhar_pedido_page.dart';
 
-class PedidoConfirmadoPage extends StatelessWidget {
-  final int selectedDay;
-  final String selectedPeriod;
+class PedidoConfirmadoPage extends ConsumerWidget {
+  /// Pedido devolvido pelo checkout.
+  final Aluguel pedido;
 
-  const PedidoConfirmadoPage({
-    super.key,
-    required this.selectedDay,
-    required this.selectedPeriod,
-  });
+  const PedidoConfirmadoPage({super.key, required this.pedido});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // O checkout não devolve o código nem os itens do pedido. O detalhe
+    // traz os dois; se ele falhar, fica com os dados do checkout.
+    final dados = ref.watch(pedidoDetalheProvider(pedido.id)).value ?? pedido;
+    final endereco = dados.endereco ?? pedido.endereco;
+    final itens = dados.itens.isNotEmpty ? dados.itens : pedido.itens;
+
+    final resumo = <_SummaryItem>[
+      _SummaryItem(
+        icon: Icons.calendar_month_outlined,
+        label: 'Data de Início:',
+        value: formatDate(dados.dataInicio),
+      ),
+      if (endereco != null)
+        _SummaryItem(
+          icon: Icons.location_on_outlined,
+          label: 'Endereço:',
+          value: '${endereco.ruaENumero} - ${endereco.cidadeEstado}',
+        ),
+      if (itens.isNotEmpty)
+        _SummaryItem(
+          icon: Icons.local_shipping_outlined,
+          label: itens.length == 1
+              ? 'Caçamba Selecionada:'
+              : 'Caçambas Selecionadas:',
+          value: itens
+              .map(
+                (item) =>
+                    '${item.cacamba?.nome ?? 'Caçamba'} '
+                    '(Quantidade: ${item.quantidade})',
+              )
+              .join('\n'),
+        ),
+      _SummaryItem(
+        icon: Icons.schedule,
+        label: 'Período de Locação:',
+        value: formatDias(dados.diasAluguel),
+      ),
+      _SummaryItem(
+        icon: Icons.payments_outlined,
+        label: 'Valor Total:',
+        value: formatMoney(dados.precoFinal),
+      ),
+      _SummaryItem(
+        icon: Icons.credit_card_outlined,
+        label: 'Pagamento:',
+        value: dados.statusPagamento?.label ?? '-',
+      ),
+    ];
+
     return Scaffold(
       drawerScrimColor: const Color(0xD9000000),
       endDrawer: const AppMenuDrawer(),
@@ -30,7 +80,7 @@ class PedidoConfirmadoPage extends StatelessWidget {
           slivers: [
             const SliverToBoxAdapter(child: _PageHeader()),
             SliverToBoxAdapter(
-              child: _ConfirmationBanner(orderNumber: '#COL-2024-1587'),
+              child: _ConfirmationBanner(codigo: dados.codigo),
             ),
             SliverToBoxAdapter(
               child: Padding(
@@ -46,44 +96,17 @@ class PedidoConfirmadoPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    _DeliverySummary(
-                      selectedDay: selectedDay,
-                      selectedPeriod: selectedPeriod,
-                    ),
+                    _DeliverySummary(itens: resumo),
                     const SizedBox(height: 26),
                     const Center(
                       child: Text(
-                        'Precisa alterar alguma informação ou falar '
-                        'com um atendente?',
+                        'Acompanhe o status da entrega e o contato do '
+                        'fornecedor na tela do pedido.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.black54, fontSize: 13),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openWhatsApp(context),
-                        style: ElevatedButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: const Color(0xFF20D366),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                        ),
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        label: const Text(
-                          'Chamar no WhatsApp',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,
                       height: 54,
@@ -149,28 +172,17 @@ class PedidoConfirmadoPage extends StatelessWidget {
     );
   }
 
-  void _openWhatsApp(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A integração com o WhatsApp será adicionada depois.'),
-      ),
-    );
-  }
-
   void _trackOrder(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AcompanharPedidoPage(
-          orderNumber: '#COL-2024-1587',
-          deliveryDay: selectedDay,
-          deliveryPeriod: selectedPeriod,
-        ),
+        builder: (_) => AcompanharPedidoPage(aluguelId: pedido.id),
       ),
     );
   }
 
   void _goHome(BuildContext context) {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
   }
 }
 
@@ -203,9 +215,9 @@ class _PageHeader extends StatelessWidget {
 }
 
 class _ConfirmationBanner extends StatelessWidget {
-  final String orderNumber;
+  final String? codigo;
 
-  const _ConfirmationBanner({required this.orderNumber});
+  const _ConfirmationBanner({required this.codigo});
 
   @override
   Widget build(BuildContext context) {
@@ -231,22 +243,24 @@ class _ConfirmationBanner extends StatelessWidget {
               letterSpacing: -0.8,
             ),
           ),
-          const SizedBox(height: 12),
-          RichText(
-            text: TextSpan(
-              style: const TextStyle(color: Colors.black54, fontSize: 15),
-              children: [
-                const TextSpan(text: 'Nº do pedido: '),
-                TextSpan(
-                  text: orderNumber,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w800,
+          if (codigo != null) ...[
+            const SizedBox(height: 12),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(color: Colors.black54, fontSize: 15),
+                children: [
+                  const TextSpan(text: 'Nº do pedido: '),
+                  TextSpan(
+                    text: codigo,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -254,13 +268,9 @@ class _ConfirmationBanner extends StatelessWidget {
 }
 
 class _DeliverySummary extends StatelessWidget {
-  final int selectedDay;
-  final String selectedPeriod;
+  final List<_SummaryItem> itens;
 
-  const _DeliverySummary({
-    required this.selectedDay,
-    required this.selectedPeriod,
-  });
+  const _DeliverySummary({required this.itens});
 
   @override
   Widget build(BuildContext context) {
@@ -273,23 +283,10 @@ class _DeliverySummary extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _SummaryItem(
-            icon: Icons.calendar_month_outlined,
-            label: 'Data Prevista:',
-            value: '$selectedDay de Outubro de 2024 ($selectedPeriod)',
-          ),
-          const SizedBox(height: 16),
-          const _SummaryItem(
-            icon: Icons.location_on_outlined,
-            label: 'Endereço:',
-            value: 'Avenida Paulista, 1000 - São Paulo',
-          ),
-          const SizedBox(height: 16),
-          const _SummaryItem(
-            icon: Icons.local_shipping_outlined,
-            label: 'Caçamba Selecionada:',
-            value: 'Caçamba 5m³ (Quantidade: 1)',
-          ),
+          for (var i = 0; i < itens.length; i++) ...[
+            if (i > 0) const SizedBox(height: 16),
+            itens[i],
+          ],
         ],
       ),
     );
@@ -370,17 +367,6 @@ class _SustainabilityFooter extends StatelessWidget {
             'ambientais municipais e resoluções do CONAMA. Garantimos o '
             'destino correto para o seu entulho.',
             style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.5),
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(Icons.phone_outlined, color: Colors.orange, size: 19),
-              SizedBox(width: 8),
-              Text(
-                'Suporte WhatsApp: (11) 99999-9999',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ],
           ),
         ],
       ),

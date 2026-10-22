@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 
+import '../../../../core/models/enums.dart';
+import '../../../../core/models/usuario.dart';
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../data/sessao_provider.dart';
 
 //botoes de navegação do rodapé
 //import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -277,19 +283,39 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
 
-    // Simulação temporária. Será substituída pela chamada da API.
-    await Future<void>.delayed(const Duration(seconds: 1));
+    try {
+      final usuario = await ref
+          .read(sessaoProvider.notifier)
+          .entrar(
+            email: _emailController.text,
+            senha: _passwordController.text,
+          );
 
-    if (!mounted) return;
+      if (!mounted) return;
+      _irParaAreaDoPerfil(usuario);
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
-    setState(() => _isLoading = false);
+  /// O cliente volta para onde estava (ex.: o carrinho, quando o login foi
+  /// pedido no meio de uma ação). Fornecedor e admin vão para o painel.
+  void _irParaAreaDoPerfil(Usuario usuario) {
+    final navigator = Navigator.of(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Login validado. A API será integrada posteriormente.'),
-        backgroundColor: AppColors.green,
-      ),
-    );
+    if (usuario.isConsumidor && navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    final rota = switch (usuario.tipoPerfil) {
+      TipoPerfil.cacambeiro => AppRoutes.supplierHome,
+      TipoPerfil.admin => AppRoutes.adminHome,
+      _ => AppRoutes.home,
+    };
+    navigator.pushNamedAndRemoveUntil(rota, (_) => false);
   }
 
   void _openRegistration() {

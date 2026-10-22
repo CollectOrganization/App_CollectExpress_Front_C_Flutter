@@ -1,38 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
+import '../../../../core/models/enums.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../../../auth/data/sessao_provider.dart';
+import '../../data/pedidos_repository.dart';
+import '../pedidos_format.dart';
 
-class AcompanharPedidoPage extends StatefulWidget {
-  final String orderNumber;
-  final int deliveryDay;
-  final String deliveryPeriod;
+/// Detalhe de um pedido: itens, endereço, contatos, avaliação e etapas.
+final pedidoDetalheProvider = FutureProvider.autoDispose
+    .family<Aluguel, String>((ref, aluguelId) {
+      // Recarrega quando alguém entra ou sai da conta.
+      ref.watch(sessaoProvider.select((sessao) => sessao.value?.id));
+      return ref.watch(pedidosRepositoryProvider).detalhe(aluguelId);
+    });
 
-  const AcompanharPedidoPage({
-    super.key,
-    required this.orderNumber,
-    required this.deliveryDay,
-    required this.deliveryPeriod,
-  });
+class AcompanharPedidoPage extends ConsumerStatefulWidget {
+  final String aluguelId;
+
+  const AcompanharPedidoPage({super.key, required this.aluguelId});
 
   @override
-  State<AcompanharPedidoPage> createState() => _AcompanharPedidoPageState();
+  ConsumerState<AcompanharPedidoPage> createState() =>
+      _AcompanharPedidoPageState();
 }
 
-class _AcompanharPedidoPageState extends State<AcompanharPedidoPage> {
-  bool _isRefreshing = false;
+class _AcompanharPedidoPageState extends ConsumerState<AcompanharPedidoPage> {
+  Future<void> _atualizar() async {
+    final provider = pedidoDetalheProvider(widget.aluguelId);
 
-  Future<void> _refreshOrder() async {
-    setState(() => _isRefreshing = true);
-
-    await Future<void>.delayed(const Duration(seconds: 1));
+    try {
+      ref.invalidate(provider);
+      await ref.read(provider.future);
+    } catch (_) {
+      // O erro aparece na própria tela.
+      return;
+    }
 
     if (!mounted) return;
-
-    setState(() => _isRefreshing = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -44,6 +58,8 @@ class _AcompanharPedidoPageState extends State<AcompanharPedidoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final pedido = ref.watch(pedidoDetalheProvider(widget.aluguelId));
+
     return Scaffold(
       backgroundColor: Colors.white,
       endDrawer: const AppMenuDrawer(),
@@ -51,7 +67,7 @@ class _AcompanharPedidoPageState extends State<AcompanharPedidoPage> {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          onRefresh: _refreshOrder,
+          onRefresh: _atualizar,
           color: AppColors.green,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -75,25 +91,13 @@ class _AcompanharPedidoPageState extends State<AcompanharPedidoPage> {
                       style: TextStyle(color: Colors.black54, fontSize: 14),
                     ),
                     const SizedBox(height: 24),
-                    _OrderHeaderCard(
-                      orderNumber: widget.orderNumber,
-                      isRefreshing: _isRefreshing,
-                      onCopy: _copyOrderNumber,
-                      onRefresh: _refreshOrder,
-                    ),
-                    const SizedBox(height: 20),
-                    const _OrderProgressCard(),
-                    const SizedBox(height: 20),
-                    _DeliveryDetailsCard(
-                      deliveryDay: widget.deliveryDay,
-                      deliveryPeriod: widget.deliveryPeriod,
-                    ),
-                    const SizedBox(height: 20),
-                    const _DumpsterCard(),
-                    const SizedBox(height: 20),
-                    _SupportCard(
-                      onWhatsApp: _contactSupport,
-                      onCancel: _requestCancellation,
+                    AsyncValueView(
+                      value: pedido,
+                      onRetry: () => ref.invalidate(
+                        pedidoDetalheProvider(widget.aluguelId),
+                      ),
+                      data: (dados) =>
+                          _buildPedido(dados, atualizando: pedido.isLoading),
                     ),
                   ]),
                 ),
@@ -106,62 +110,72 @@ class _AcompanharPedidoPageState extends State<AcompanharPedidoPage> {
     );
   }
 
-  Future<void> _copyOrderNumber() async {
-    await Clipboard.setData(ClipboardData(text: widget.orderNumber));
+  Widget _buildPedido(Aluguel pedido, {required bool atualizando}) {
+    final codigo = pedido.codigo;
+    final fornecedor = pedido.cacambeiro;
+    final telefone = fornecedor?.telefone;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OrderHeaderCard(
+          pedido: pedido,
+          isRefreshing: atualizando,
+          onCopy: codigo == null
+              ? null
+              : () => _copiar(codigo, 'Código do pedido copiado.'),
+          onRefresh: _atualizar,
+        ),
+        const SizedBox(height: 20),
+        _OrderProgressCard(etapas: _etapasDo(pedido)),
+        const SizedBox(height: 20),
+        _DeliveryDetailsCard(pedido: pedido),
+        const SizedBox(height: 20),
+        _DumpsterCard(pedido: pedido),
+        if (fornecedor != null) ...[
+          const SizedBox(height: 20),
+          _SupplierCard(
+            contato: fornecedor,
+            onCopyPhone: telefone == null
+                ? null
+                : () => _copiar(telefone, 'Telefone do fornecedor copiado.'),
+          ),
+        ],
+        if (pedido.statusAluguel == StatusAluguel.finalizado) ...[
+          const SizedBox(height: 20),
+          _AvaliacaoCard(pedido: pedido),
+        ],
+      ],
+    );
+  }
+
+  /// As etapas vêm da API; sem elas, monta a partir do status atual.
+  List<EtapaAluguel> _etapasDo(Aluguel pedido) {
+    if (pedido.etapas.isNotEmpty) return pedido.etapas;
+
+    final status = pedido.statusAluguel ?? StatusAluguel.aguardandoEntrega;
+    final finalizado = status == StatusAluguel.finalizado;
+
+    return [
+      for (final etapa in StatusAluguel.values)
+        EtapaAluguel(
+          status: etapa,
+          titulo: etapa.label,
+          concluida:
+              etapa.index < status.index || (finalizado && etapa == status),
+          atual: etapa == status && !finalizado,
+          pendente: etapa.index > status.index,
+        ),
+    ];
+  }
+
+  Future<void> _copiar(String texto, String mensagem) async {
+    await Clipboard.setData(ClipboardData(text: texto));
 
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Número do pedido copiado.'),
-        backgroundColor: AppColors.green,
-      ),
-    );
-  }
-
-  void _contactSupport() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A integração com o WhatsApp será adicionada depois.'),
-        backgroundColor: AppColors.green,
-      ),
-    );
-  }
-
-  Future<void> _requestCancellation() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Solicitar cancelamento'),
-          content: const Text(
-            'Deseja solicitar o cancelamento deste pedido? '
-            'A solicitação será analisada pela equipe.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Voltar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text(
-                'Solicitar',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Solicitação de cancelamento enviada.'),
-        backgroundColor: Colors.orange,
-      ),
+      SnackBar(content: Text(mensagem), backgroundColor: AppColors.green),
     );
   }
 }
@@ -202,13 +216,13 @@ class _PageHeader extends StatelessWidget {
 }
 
 class _OrderHeaderCard extends StatelessWidget {
-  final String orderNumber;
+  final Aluguel pedido;
   final bool isRefreshing;
-  final VoidCallback onCopy;
+  final VoidCallback? onCopy;
   final VoidCallback onRefresh;
 
   const _OrderHeaderCard({
-    required this.orderNumber,
+    required this.pedido,
     required this.isRefreshing,
     required this.onCopy,
     required this.onRefresh,
@@ -216,6 +230,8 @@ class _OrderHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final finalizado = pedido.statusAluguel == StatusAluguel.finalizado;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -225,11 +241,11 @@ class _OrderHeaderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 25,
             backgroundColor: AppColors.green,
             child: Icon(
-              Icons.local_shipping_outlined,
+              finalizado ? Icons.check : Icons.local_shipping_outlined,
               color: Colors.white,
               size: 27,
             ),
@@ -239,9 +255,9 @@ class _OrderHeaderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Pedido em andamento',
-                  style: TextStyle(
+                Text(
+                  finalizado ? 'Pedido finalizado' : 'Pedido em andamento',
+                  style: const TextStyle(
                     color: AppColors.green,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -249,7 +265,7 @@ class _OrderHeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  orderNumber,
+                  pedido.codigo ?? 'Feito em ${formatDate(pedido.dataPedido)}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -258,11 +274,12 @@ class _OrderHeaderCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Copiar número',
-            onPressed: onCopy,
-            icon: const Icon(Icons.copy_outlined),
-          ),
+          if (onCopy != null)
+            IconButton(
+              tooltip: 'Copiar código',
+              onPressed: onCopy,
+              icon: const Icon(Icons.copy_outlined),
+            ),
           IconButton(
             tooltip: 'Atualizar',
             onPressed: isRefreshing ? null : onRefresh,
@@ -284,59 +301,61 @@ class _OrderHeaderCard extends StatelessWidget {
 }
 
 class _OrderProgressCard extends StatelessWidget {
-  const _OrderProgressCard();
+  final List<EtapaAluguel> etapas;
+
+  const _OrderProgressCard({required this.etapas});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.lightGray,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Status da Locação',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
-          SizedBox(height: 22),
-          _TrackingStep(
-            icon: Icons.receipt_long_outlined,
-            title: 'Pedido confirmado',
-            subtitle: 'Pagamento aprovado',
-            state: _TrackingState.completed,
-          ),
-          _TrackingStep(
-            icon: Icons.inventory_2_outlined,
-            title: 'Preparando a caçamba',
-            subtitle: 'O fornecedor está preparando o equipamento',
-            state: _TrackingState.current,
-          ),
-          _TrackingStep(
-            icon: Icons.local_shipping_outlined,
-            title: 'Em rota de entrega',
-            subtitle: 'Você será avisado quando o motorista sair',
-            state: _TrackingState.pending,
-          ),
-          _TrackingStep(
-            icon: Icons.location_on_outlined,
-            title: 'Caçamba entregue',
-            subtitle: 'Aguardando entrega no endereço informado',
-            state: _TrackingState.pending,
-          ),
-          _TrackingStep(
-            icon: Icons.recycling_outlined,
-            title: 'Coleta agendada',
-            subtitle: 'A retirada será realizada ao final da locação',
-            state: _TrackingState.pending,
-            showLine: false,
-          ),
+          const SizedBox(height: 22),
+          for (var i = 0; i < etapas.length; i++)
+            _TrackingStep(
+              icon: _iconeDa(etapas[i].status),
+              title: etapas[i].titulo,
+              subtitle: _descricaoDa(etapas[i].status),
+              state: etapas[i].atual
+                  ? _TrackingState.current
+                  : etapas[i].concluida
+                  ? _TrackingState.completed
+                  : _TrackingState.pending,
+              showLine: i < etapas.length - 1,
+            ),
         ],
       ),
     );
   }
+
+  static IconData _iconeDa(StatusAluguel? status) => switch (status) {
+    StatusAluguel.aguardandoEntrega => Icons.local_shipping_outlined,
+    StatusAluguel.emUso => Icons.delete_outline,
+    StatusAluguel.aguardandoRetirada => Icons.recycling_outlined,
+    StatusAluguel.finalizado => Icons.flag_outlined,
+    null => Icons.circle_outlined,
+  };
+
+  static String _descricaoDa(StatusAluguel? status) => switch (status) {
+    StatusAluguel.aguardandoEntrega =>
+      'O fornecedor levará a caçamba ao endereço na data de início',
+    StatusAluguel.emUso => 'A caçamba está no endereço, em uso',
+    StatusAluguel.aguardandoRetirada =>
+      'O fornecedor fará a retirada da caçamba',
+    StatusAluguel.finalizado => 'Locação concluída',
+    null => '',
+  };
 }
 
 enum _TrackingState { completed, current, pending }
@@ -397,7 +416,7 @@ class _TrackingStep extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding: EdgeInsets.only(bottom: showLine ? 24 : 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -436,15 +455,17 @@ class _TrackingStep extends StatelessWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 11,
-                      height: 1.4,
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -456,97 +477,405 @@ class _TrackingStep extends StatelessWidget {
 }
 
 class _DeliveryDetailsCard extends StatelessWidget {
-  final int deliveryDay;
-  final String deliveryPeriod;
+  final Aluguel pedido;
 
-  const _DeliveryDetailsCard({
-    required this.deliveryDay,
-    required this.deliveryPeriod,
-  });
+  const _DeliveryDetailsCard({required this.pedido});
 
   @override
   Widget build(BuildContext context) {
+    final endereco = pedido.endereco;
+
     return _SectionCard(
       title: 'Detalhes da Entrega',
       children: [
         _InformationRow(
           icon: Icons.calendar_month_outlined,
-          label: 'Data prevista',
-          value: '$deliveryDay de outubro de 2024',
+          label: 'Data de início',
+          value: formatDate(pedido.dataInicio),
         ),
         const SizedBox(height: 14),
         _InformationRow(
           icon: Icons.schedule,
-          label: 'Período',
-          value: deliveryPeriod,
+          label: 'Período de locação',
+          value: formatDias(pedido.diasAluguel),
         ),
-        const SizedBox(height: 14),
-        const _InformationRow(
-          icon: Icons.location_on_outlined,
-          label: 'Endereço',
-          value: 'Av. Paulista, 1000 - Bela Vista',
-        ),
+        if (pedido.dataPedido != null) ...[
+          const SizedBox(height: 14),
+          _InformationRow(
+            icon: Icons.receipt_long_outlined,
+            label: 'Pedido feito em',
+            value: formatDate(pedido.dataPedido),
+          ),
+        ],
+        if (endereco != null) ...[
+          const SizedBox(height: 14),
+          _InformationRow(
+            icon: Icons.location_on_outlined,
+            label: 'Endereço',
+            value: '${endereco.ruaENumero}\n${endereco.regiaoECep}',
+          ),
+        ],
       ],
     );
   }
 }
 
 class _DumpsterCard extends StatelessWidget {
-  const _DumpsterCard();
+  final Aluguel pedido;
+
+  const _DumpsterCard({required this.pedido});
 
   @override
   Widget build(BuildContext context) {
+    final taxaEntrega = pedido.taxaEntrega;
+
     return _SectionCard(
       title: 'Serviço Contratado',
       children: [
-        Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: Image.asset(
-                'assets/images/cacamba_5m.jpg',
-                width: 92,
-                height: 78,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) {
-                  return Container(
-                    width: 92,
-                    height: 78,
-                    color: AppColors.lightGray,
-                    child: const Icon(Icons.delete_outline),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Caçamba 5m³ - Entulho',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'Quantidade: 1 • Período: 3 dias',
-                    style: TextStyle(color: Colors.black54, fontSize: 11),
-                  ),
-                  SizedBox(height: 7),
-                  Text(
-                    'R\$ 315,00',
-                    style: TextStyle(
-                      color: AppColors.green,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        for (final item in pedido.itens) ...[
+          _ItemRow(item: item),
+          const SizedBox(height: 14),
+        ],
+        if (pedido.itens.isNotEmpty) ...[
+          const Divider(color: AppColors.border),
+          const SizedBox(height: 14),
+        ],
+        if (pedido.subtotalItens != null) ...[
+          _InformationRow(
+            icon: Icons.receipt_outlined,
+            label: 'Subtotal',
+            value: formatMoney(pedido.subtotalItens!),
+          ),
+          const SizedBox(height: 14),
+        ],
+        if (taxaEntrega != null) ...[
+          _InformationRow(
+            icon: Icons.local_shipping_outlined,
+            label: 'Taxa de entrega',
+            value: taxaEntrega == 0 ? 'Grátis' : formatMoney(taxaEntrega),
+          ),
+          const SizedBox(height: 14),
+        ],
+        _InformationRow(
+          icon: Icons.payments_outlined,
+          label: 'Valor total',
+          value: formatMoney(pedido.precoFinal),
+        ),
+        const SizedBox(height: 14),
+        _InformationRow(
+          icon: Icons.credit_card_outlined,
+          label: 'Pagamento',
+          value: pedido.statusPagamento?.label ?? '-',
         ),
       ],
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  final ItemAluguel item;
+
+  const _ItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cacamba = item.cacamba;
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(11),
+          child: SizedBox(
+            width: 92,
+            height: 78,
+            child: CacambaImage(
+              fotoUrl: cacamba?.fotoUrl,
+              tamanhoM3: cacamba?.tamanhoM3 ?? 0,
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                cacamba?.nome ?? 'Caçamba',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Quantidade: ${item.quantidade} • '
+                'Período: ${formatDias(item.diasAluguel)}',
+                style: const TextStyle(color: Colors.black54, fontSize: 11),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                formatMoney(item.subtotal),
+                style: const TextStyle(
+                  color: AppColors.green,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SupplierCard extends StatelessWidget {
+  final ContatoPedido contato;
+  final VoidCallback? onCopyPhone;
+
+  const _SupplierCard({required this.contato, required this.onCopyPhone});
+
+  @override
+  Widget build(BuildContext context) {
+    final email = contato.email;
+    final temHorario =
+        contato.horarioInicio != null && contato.horarioFim != null;
+
+    return _SectionCard(
+      title: 'Fornecedor',
+      children: [
+        _InformationRow(
+          icon: Icons.storefront_outlined,
+          label: 'Nome',
+          value: contato.nomeCompleto,
+        ),
+        if (contato.telefone != null) ...[
+          const SizedBox(height: 14),
+          _InformationRow(
+            icon: Icons.phone_outlined,
+            label: 'Telefone',
+            value: formatPhone(contato.telefone),
+          ),
+        ],
+        if (email != null) ...[
+          const SizedBox(height: 14),
+          _InformationRow(
+            icon: Icons.email_outlined,
+            label: 'E-mail',
+            value: email,
+          ),
+        ],
+        if (temHorario) ...[
+          const SizedBox(height: 14),
+          _InformationRow(
+            icon: Icons.schedule,
+            label: 'Atendimento',
+            value:
+                '${formatHour(contato.horarioInicio)} às '
+                '${formatHour(contato.horarioFim)}',
+          ),
+        ],
+        if (onCopyPhone != null) ...[
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton.icon(
+              onPressed: onCopyPhone,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: const Color(0xFF20C765),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+              icon: const Icon(Icons.copy_outlined),
+              label: const Text(
+                'Copiar telefone do fornecedor',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AvaliacaoCard extends ConsumerStatefulWidget {
+  final Aluguel pedido;
+
+  const _AvaliacaoCard({required this.pedido});
+
+  @override
+  ConsumerState<_AvaliacaoCard> createState() => _AvaliacaoCardState();
+}
+
+class _AvaliacaoCardState extends ConsumerState<_AvaliacaoCard> {
+  final _comentarioController = TextEditingController();
+
+  int _nota = 0;
+  bool _enviando = false;
+
+  @override
+  void dispose() {
+    _comentarioController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final avaliacao = widget.pedido.avaliacao;
+
+    if (avaliacao != null) {
+      final comentario = avaliacao.comentario;
+
+      return _SectionCard(
+        title: 'Sua Avaliação',
+        children: [
+          _Estrelas(nota: avaliacao.nota),
+          if (comentario != null && comentario.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              comentario,
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return _SectionCard(
+      title: 'Avalie a Locação',
+      children: [
+        const Text(
+          'Como foi o serviço do fornecedor?',
+          style: TextStyle(color: Colors.black54, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        _Estrelas(
+          nota: _nota,
+          onChanged: _enviando ? null : (nota) => setState(() => _nota = nota),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _comentarioController,
+          enabled: !_enviando,
+          minLines: 2,
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            hintText: 'Comentário (opcional)',
+            hintStyle: const TextStyle(color: Colors.black38),
+            filled: true,
+            fillColor: Colors.white,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(11),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(11),
+              borderSide: const BorderSide(color: AppColors.green, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _nota == 0 || _enviando ? null : _enviarAvaliacao,
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.green,
+              disabledBackgroundColor: AppColors.green.withValues(alpha: 0.55),
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            child: _enviando
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Enviar avaliação',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _enviarAvaliacao() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _enviando = true);
+
+    try {
+      await ref
+          .read(pedidosRepositoryProvider)
+          .avaliar(
+            aluguelId: widget.pedido.id,
+            nota: _nota,
+            comentario: _comentarioController.text,
+          );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Obrigado pela avaliação!'),
+          backgroundColor: AppColors.green,
+        ),
+      );
+      ref.invalidate(pedidoDetalheProvider(widget.pedido.id));
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+}
+
+class _Estrelas extends StatelessWidget {
+  final int nota;
+  final ValueChanged<int>? onChanged;
+
+  const _Estrelas({required this.nota, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var estrela = 1; estrela <= 5; estrela++)
+          onChanged == null
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: _icone(estrela),
+                )
+              : IconButton(
+                  tooltip: '$estrela de 5',
+                  onPressed: () => onChanged!(estrela),
+                  visualDensity: VisualDensity.compact,
+                  icon: _icone(estrela),
+                ),
+      ],
+    );
+  }
+
+  Widget _icone(int estrela) {
+    return Icon(
+      estrela <= nota ? Icons.star_rounded : Icons.star_outline_rounded,
+      color: AppColors.yellow,
+      size: 30,
     );
   }
 }
@@ -612,50 +941,6 @@ class _InformationRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SupportCard extends StatelessWidget {
-  final VoidCallback onWhatsApp;
-  final VoidCallback onCancel;
-
-  const _SupportCard({required this.onWhatsApp, required this.onCancel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: ElevatedButton.icon(
-            onPressed: onWhatsApp,
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: const Color(0xFF20C765),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-              ),
-            ),
-            icon: const Icon(Icons.chat_bubble_outline),
-            label: const Text(
-              'Falar com o Suporte',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextButton(
-          onPressed: onCancel,
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
-          child: const Text(
-            'Solicitar cancelamento',
-            style: TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
       ],

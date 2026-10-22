@@ -1,0 +1,29 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/models/aluguel.dart';
+import '../../../core/models/cacamba.dart';
+import '../../pedidos/data/pedidos_repository.dart';
+import '../data/fornecedor_repository.dart';
+import '../domain/models/fornecedor_dashboard.dart';
+
+// Dados das telas do fornecedor (CACAMBEIRO).
+
+final fornecedorDashboardProvider =
+    FutureProvider.autoDispose<FornecedorDashboard>((ref) {
+      return ref.watch(fornecedorRepositoryProvider).dashboard();
+    });
+
+final minhasCacambasProvider = FutureProvider.autoDispose<List<Cacamba>>((ref) {
+  return ref.watch(fornecedorRepositoryProvider).minhasCacambas();
+});
+
+final pedidosRecebidosProvider = FutureProvider.autoDispose<List<Aluguel>>((
+  ref,
+) {
+  return ref.watch(fornecedorRepositoryProvider).pedidosRecebidos();
+});
+
+final detalhePedidoFornecedorProvider = FutureProvider.autoDispose
+    .family<Aluguel, String>((ref, id) {
+      return ref.watch(pedidosRepositoryProvider).detalhe(id);
+    });

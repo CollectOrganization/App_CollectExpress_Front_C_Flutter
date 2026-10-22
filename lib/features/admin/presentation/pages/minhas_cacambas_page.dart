@@ -1,103 +1,150 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/cacamba.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
-import '../../domain/models/admin_cacamba.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../../data/fornecedor_repository.dart';
+import '../fornecedor_providers.dart';
 import 'cadastrar_cacamba_page.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class MinhasCacambasPage extends StatefulWidget {
+enum _AcaoCacamba { alternarDisponibilidade, excluir }
+
+class MinhasCacambasPage extends ConsumerStatefulWidget {
   const MinhasCacambasPage({super.key});
 
   @override
-  State<MinhasCacambasPage> createState() => _MinhasCacambasPageState();
+  ConsumerState<MinhasCacambasPage> createState() => _MinhasCacambasPageState();
 }
 
-class _MinhasCacambasPageState extends State<MinhasCacambasPage> {
+class _MinhasCacambasPageState extends ConsumerState<MinhasCacambasPage> {
   String selectedFilter = 'Todas';
 
-  final List<AdminCacamba> cacambas = [
-    const AdminCacamba(
-      id: '1',
-      title: 'Caçamba 5m³ - Entulho',
-      region: 'Zona Sul',
-      price: 350,
-      period: '5 dias',
-      imagePath: 'assets/images/cacamba_5m.jpg',
-      status: AdminCacambaStatus.disponivel,
-    ),
-    const AdminCacamba(
-      id: '2',
-      title: 'Caçamba 3m³ - Poda',
-      region: 'Zona Oeste',
-      price: 290,
-      period: '5 dias',
-      imagePath: 'assets/images/cacamba_3m.jpg',
-      status: AdminCacambaStatus.alugada,
-    ),
-    const AdminCacamba(
-      id: '3',
-      title: 'Caçamba 7m³ - Reciclável',
-      region: 'Centro',
-      price: 420,
-      period: '5 dias',
-      imagePath: 'assets/images/cacamba_7m.jpg',
-      status: AdminCacambaStatus.manutencao,
-    ),
-    const AdminCacamba(
-      id: '4',
-      title: 'Caçamba 5m³ - Mista',
-      region: 'Zona Norte',
-      price: 370,
-      period: '5 dias',
-      imagePath: 'assets/images/cacamba_5m.jpg',
-      status: AdminCacambaStatus.disponivel,
-    ),
-  ];
+  final Set<String> _processando = {};
 
-  List<AdminCacamba> get filteredCacambas {
+  List<Cacamba> _filtrar(List<Cacamba> cacambas) {
     switch (selectedFilter) {
       case 'Disponíveis':
-        return cacambas
-            .where((item) => item.status == AdminCacambaStatus.disponivel)
-            .toList();
-      case 'Alugadas':
-        return cacambas
-            .where((item) => item.status == AdminCacambaStatus.alugada)
-            .toList();
+        return cacambas.where((item) => item.disponivel).toList();
+      case 'Indisponíveis':
+        return cacambas.where((item) => !item.disponivel).toList();
       default:
         return cacambas;
     }
   }
 
-  int get availableCount => cacambas
-      .where((item) => item.status == AdminCacambaStatus.disponivel)
-      .length;
-
-  int get rentedCount => cacambas
-      .where((item) => item.status == AdminCacambaStatus.alugada)
-      .length;
-
   Future<void> _openRegistration() async {
-    final newCacamba = await Navigator.of(context).push<AdminCacamba>(
+    final newCacamba = await Navigator.of(context).push<Object?>(
       MaterialPageRoute(builder: (_) => const CadastrarCacambaPage()),
     );
 
-    if (newCacamba == null || !mounted) return;
+    if (!mounted) return;
 
-    setState(() {
-      cacambas.insert(0, newCacamba);
-      selectedFilter = 'Todas';
-    });
+    ref.invalidate(minhasCacambasProvider);
+
+    if (newCacamba == null) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Caçamba adicionada à lista!'),
-        backgroundColor: AppColors.green,
+        content: Text('O cadastro de caçambas ainda não está ligado à API.'),
       ),
     );
+  }
+
+  Future<void> _onAcao(Cacamba cacamba, _AcaoCacamba acao) async {
+    switch (acao) {
+      case _AcaoCacamba.alternarDisponibilidade:
+        await _alternarDisponibilidade(cacamba);
+      case _AcaoCacamba.excluir:
+        await _excluir(cacamba);
+    }
+  }
+
+  Future<void> _alternarDisponibilidade(Cacamba cacamba) async {
+    final disponivel = !cacamba.disponivel;
+
+    setState(() => _processando.add(cacamba.id));
+    try {
+      await ref
+          .read(fornecedorRepositoryProvider)
+          .atualizarCacamba(cacamba.id, disponivel: disponivel);
+      if (!mounted) return;
+
+      ref.invalidate(minhasCacambasProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            disponivel
+                ? 'Caçamba marcada como disponível.'
+                : 'Caçamba marcada como indisponível.',
+          ),
+          backgroundColor: AppColors.green,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _processando.remove(cacamba.id));
+    }
+  }
+
+  Future<void> _excluir(Cacamba cacamba) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Excluir caçamba'),
+          content: Text(
+            'Deseja excluir "${cacamba.nome}"? Se ela já tiver pedidos, '
+            'será apenas desativada.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _processando.add(cacamba.id));
+    try {
+      final removida = await ref
+          .read(fornecedorRepositoryProvider)
+          .removerCacamba(cacamba.id);
+      if (!mounted) return;
+
+      ref.invalidate(minhasCacambasProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            removida
+                ? 'Caçamba excluída.'
+                : 'A caçamba tem histórico de pedidos, então foi apenas '
+                      'desativada.',
+          ),
+          backgroundColor: removida ? AppColors.green : null,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _processando.remove(cacamba.id));
+    }
   }
 
   @override
@@ -116,68 +163,90 @@ class _MinhasCacambasPageState extends State<MinhasCacambasPage> {
         child: CustomScrollView(
           slivers: [
             const SliverToBoxAdapter(child: _AdminHeader()),
-            SliverToBoxAdapter(
+            const SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 30, 18, 20),
+                padding: EdgeInsets.fromLTRB(18, 30, 18, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Minhas Caçambas',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    const Text(
+                    SizedBox(height: 3),
+                    Text(
                       'Gerencie seus equipamentos e disponibilidade',
                       style: TextStyle(color: Colors.black54, fontSize: 13),
-                    ),
-                    const SizedBox(height: 24),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _filterButton('Todas', 'Todas (${cacambas.length})'),
-                          const SizedBox(width: 10),
-                          _filterButton(
-                            'Disponíveis',
-                            'Disponíveis ($availableCount)',
-                          ),
-                          const SizedBox(width: 10),
-                          _filterButton('Alugadas', 'Alugadas ($rentedCount)'),
-                        ],
-                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            if (filteredCacambas.isEmpty)
-              const SliverFillRemaining(
-                child: Center(
-                  child: Text(
-                    'Nenhuma caçamba encontrada.',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
-                sliver: SliverList.separated(
-                  itemCount: filteredCacambas.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    return _CacambaCard(cacamba: filteredCacambas[index]);
-                  },
-                ),
+            SliverToBoxAdapter(
+              child: AsyncValueView(
+                value: ref.watch(minhasCacambasProvider),
+                onRetry: () => ref.invalidate(minhasCacambasProvider),
+                data: _buildCacambas,
               ),
+            ),
           ],
         ),
       ),
       bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 1),
+    );
+  }
+
+  Widget _buildCacambas(List<Cacamba> cacambas) {
+    final filtradas = _filtrar(cacambas);
+    final disponiveis = cacambas.where((item) => item.disponivel).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _filterButton('Todas', 'Todas (${cacambas.length})'),
+                const SizedBox(width: 10),
+                _filterButton('Disponíveis', 'Disponíveis ($disponiveis)'),
+                const SizedBox(width: 10),
+                _filterButton(
+                  'Indisponíveis',
+                  'Indisponíveis (${cacambas.length - disponiveis})',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (filtradas.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: Text(
+                  cacambas.isEmpty
+                      ? 'Você ainda não cadastrou caçambas.'
+                      : 'Nenhuma caçamba encontrada.',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+              ),
+            )
+          else
+            for (final cacamba in filtradas) ...[
+              _CacambaCard(
+                cacamba: cacamba,
+                processando: _processando.contains(cacamba.id),
+                onAcao: (acao) => _onAcao(cacamba, acao),
+              ),
+              const SizedBox(height: 16),
+            ],
+        ],
+      ),
     );
   }
 
@@ -258,9 +327,15 @@ class _AdminHeader extends StatelessWidget {
 }
 
 class _CacambaCard extends StatelessWidget {
-  final AdminCacamba cacamba;
+  final Cacamba cacamba;
+  final bool processando;
+  final ValueChanged<_AcaoCacamba> onAcao;
 
-  const _CacambaCard({required this.cacamba});
+  const _CacambaCard({
+    required this.cacamba,
+    required this.processando,
+    required this.onAcao,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -276,18 +351,13 @@ class _CacambaCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              cacamba.imagePath,
-              width: 143,
+            child: SizedBox(
+              width: 120,
               height: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) {
-                return Container(
-                  width: 143,
-                  color: AppColors.lightGray,
-                  child: const Icon(Icons.image_outlined),
-                );
-              },
+              child: CacambaImage(
+                fotoUrl: cacamba.fotoUrl,
+                tamanhoM3: cacamba.tamanhoM3,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -297,7 +367,7 @@ class _CacambaCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  cacamba.title,
+                  cacamba.nome,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -307,16 +377,34 @@ class _CacambaCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'Região: ${cacamba.region}',
+                  '${formatVolume(cacamba.tamanhoM3)} • ${cacamba.tipoResiduo}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Colors.black54, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  _formatMoney(cacamba.price),
-                  style: const TextStyle(
-                    color: AppColors.green,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(
+                      text: formatMoney(cacamba.precoDiaria),
+                      children: const [
+                        TextSpan(
+                          text: '/dia',
+                          style: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.green,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -327,49 +415,63 @@ class _CacambaCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _StatusBadge(status: cacamba.status),
+              _StatusBadge(disponivel: cacamba.disponivel),
               const Spacer(),
-              Text(
-                'Período: ${cacamba.period}',
-                style: const TextStyle(color: Colors.black54, fontSize: 10),
-              ),
+              if (processando)
+                const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.green,
+                    ),
+                  ),
+                )
+              else
+                PopupMenuButton<_AcaoCacamba>(
+                  tooltip: 'Opções',
+                  icon: const Icon(Icons.more_vert, color: Colors.black54),
+                  onSelected: onAcao,
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: _AcaoCacamba.alternarDisponibilidade,
+                      child: Text(
+                        cacamba.disponivel
+                            ? 'Marcar como indisponível'
+                            : 'Marcar como disponível',
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: _AcaoCacamba.excluir,
+                      child: Text(
+                        'Excluir',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
       ),
     );
   }
-
-  String _formatMoney(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
 }
 
 class _StatusBadge extends StatelessWidget {
-  final AdminCacambaStatus status;
+  final bool disponivel;
 
-  const _StatusBadge({required this.status});
+  const _StatusBadge({required this.disponivel});
 
   @override
   Widget build(BuildContext context) {
-    late String label;
-    late Color foregroundColor;
-    late Color backgroundColor;
-
-    switch (status) {
-      case AdminCacambaStatus.disponivel:
-        label = 'Disponível';
-        foregroundColor = AppColors.green;
-        backgroundColor = const Color(0xFFE7F6E8);
-      case AdminCacambaStatus.alugada:
-        label = 'Alugada';
-        foregroundColor = const Color(0xFF9A6D00);
-        backgroundColor = const Color(0xFFFFF8D9);
-      case AdminCacambaStatus.manutencao:
-        label = 'Manutenção';
-        foregroundColor = Colors.red;
-        backgroundColor = const Color(0xFFFFE8E8);
-    }
+    final label = disponivel ? 'Disponível' : 'Indisponível';
+    final foregroundColor = disponivel ? AppColors.green : Colors.red;
+    final backgroundColor = disponivel
+        ? const Color(0xFFE7F6E8)
+        : const Color(0xFFFFE8E8);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

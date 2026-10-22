@@ -1,423 +1,417 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
+import '../../../../core/models/endereco.dart';
+import '../../../../core/models/enums.dart';
+import '../../../../core/models/pagina.dart';
+import '../../../../core/models/usuario.dart';
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../auth/data/auth_repository.dart';
+import '../../../auth/data/sessao_provider.dart';
+import '../../../pedidos/data/pedidos_repository.dart';
+import '../../../pedidos/presentation/pages/acompanhar_pedido_page.dart';
+import '../../data/enderecos_repository.dart';
+import '../widgets/editar_dados_pessoais_dialog.dart';
+import '../widgets/endereco_form_dialog.dart';
 
-class PerfilClientePage extends StatefulWidget {
+final perfilClienteProvider = FutureProvider.autoDispose<Usuario>((ref) {
+  return ref.watch(authRepositoryProvider).perfil();
+});
+
+final enderecosClienteProvider = FutureProvider.autoDispose<List<Endereco>>((
+  ref,
+) {
+  return ref.watch(enderecosRepositoryProvider).listar();
+});
+
+/// Uma página (20 pedidos) do histórico do cliente.
+final pedidosClienteProvider = FutureProvider.autoDispose
+    .family<Pagina<Aluguel>, int>((ref, pagina) {
+      return ref.watch(pedidosRepositoryProvider).meusPedidos(pagina: pagina);
+    });
+
+const _limiteEnderecos = 10;
+
+class PerfilClientePage extends ConsumerStatefulWidget {
   const PerfilClientePage({super.key});
 
   @override
-  State<PerfilClientePage> createState() => _PerfilClientePageState();
+  ConsumerState<PerfilClientePage> createState() => _PerfilClientePageState();
 }
 
-class _PerfilClientePageState extends State<PerfilClientePage> {
-  String name = 'João da Silva';
-  String email = 'joao.silva@email.com';
-  String phone = '(11) 99999-9999';
+class _PerfilClientePageState extends ConsumerState<PerfilClientePage> {
+  /// Quantas páginas do histórico de pedidos estão sendo mostradas.
+  int _paginasDePedidos = 1;
 
-  String street = 'Avenida Paulista, 1000';
-  String complement = 'Apto. 82';
-  String neighborhood = 'Bela Vista';
-  String city = 'São Paulo';
-  String state = 'SP';
-  String cep = '01311-200';
-
-  bool orderNotifications = true;
-  bool offerNotifications = true;
-  bool whatsappNotifications = false;
+  String? _removendoEnderecoId;
+  bool _saindo = false;
 
   @override
   Widget build(BuildContext context) {
+    // Depois de entrar pelo botão "Entrar" (erro 401), recarrega a tela.
+    ref.listen(sessaoProvider.select((sessao) => sessao.value?.id), (
+      anterior,
+      atual,
+    ) {
+      if (atual != null && atual != anterior) _recarregar();
+    });
+
+    final perfil = ref.watch(perfilClienteProvider);
+    final enderecos = ref.watch(enderecosClienteProvider);
+    final pedidos = [
+      for (var pagina = 1; pagina <= _paginasDePedidos; pagina++)
+        ref.watch(pedidosClienteProvider(pagina)),
+    ];
+
     return Scaffold(
       backgroundColor: Colors.white,
       endDrawer: const AppMenuDrawer(),
       drawerScrimColor: const Color(0xD9000000),
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(child: _PageHeader()),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 28, 18, 34),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  const Text(
-                    'Meu Perfil',
-                    style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Gerencie seus dados e preferências da conta',
-                    style: TextStyle(color: Colors.black54, fontSize: 15),
-                  ),
-                  const SizedBox(height: 20),
-                  _ProfileCard(name: name, onEdit: _editPersonalData),
-                  const SizedBox(height: 30),
-                  _SectionHeader(
-                    title: 'Dados pessoais',
-                    onEdit: _editPersonalData,
-                  ),
-                  const SizedBox(height: 10),
-                  _PersonalDataCard(email: email, phone: phone),
-                  const SizedBox(height: 28),
-                  _SectionHeader(
-                    title: 'Endereço principal',
-                    onEdit: _editAddress,
-                  ),
-                  const SizedBox(height: 10),
-                  _AddressCard(
-                    street: street,
-                    complement: complement,
-                    neighborhood: neighborhood,
-                    city: city,
-                    state: state,
-                    cep: cep,
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Conta e preferências',
-                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 12),
-                  _PreferencesCard(
-                    onPassword: _changePassword,
-                    onNotifications: _configureNotifications,
-                    onPayments: _showPayments,
-                    onSupport: _showSupport,
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: _logout,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(11),
+        child: RefreshIndicator(
+          color: AppColors.green,
+          onRefresh: _recarregar,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              const SliverToBoxAdapter(child: _PageHeader()),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 28, 18, 34),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Meu Perfil',
+                        style: TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      icon: const Icon(Icons.logout),
-                      label: const Text(
-                        'Sair da conta',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Gerencie seus dados, endereços e pedidos',
+                        style: TextStyle(color: Colors.black54, fontSize: 15),
                       ),
-                    ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: AsyncValueView<Usuario>(
+                          value: perfil,
+                          onRetry: () => ref.invalidate(perfilClienteProvider),
+                          data: (usuario) =>
+                              _buildConteudo(usuario, enderecos, pedidos),
+                        ),
+                      ),
+                    ],
                   ),
-                ]),
+                ),
               ),
-            ),
-            const SliverToBoxAdapter(child: _SustainabilityFooter()),
-          ],
+              const SliverToBoxAdapter(child: _SustainabilityFooter()),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 3),
     );
   }
 
-  Future<void> _editPersonalData() async {
-    final nameController = TextEditingController(text: name);
-    final emailController = TextEditingController(text: email);
-    final phoneController = TextEditingController(text: phone);
+  Widget _buildConteudo(
+    Usuario usuario,
+    AsyncValue<List<Endereco>> enderecos,
+    List<AsyncValue<Pagina<Aluguel>>> pedidos,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProfileCard(
+          usuario: usuario,
+          totalPedidos: pedidos.first.value?.total,
+          onEdit: () => _editarDadosPessoais(usuario),
+        ),
+        const SizedBox(height: 30),
+        _SectionHeader(
+          title: 'Dados pessoais',
+          actionLabel: 'Editar',
+          actionIcon: Icons.edit_outlined,
+          onAction: () => _editarDadosPessoais(usuario),
+        ),
+        const SizedBox(height: 10),
+        _PersonalDataCard(usuario: usuario),
+        const SizedBox(height: 28),
+        _SectionHeader(
+          title: 'Meus endereços',
+          actionLabel: 'Adicionar',
+          actionIcon: Icons.add,
+          onAction: _adicionarEndereco,
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: AsyncValueView<List<Endereco>>(
+            value: enderecos,
+            onRetry: () => ref.invalidate(enderecosClienteProvider),
+            data: _buildEnderecos,
+          ),
+        ),
+        const SizedBox(height: 28),
+        const Text(
+          'Meus pedidos',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: _buildPedidos(pedidos)),
+        const SizedBox(height: 32),
+        const Text(
+          'Ajuda',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 12),
+        _SupportCard(onTap: _showSupport),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton.icon(
+            onPressed: _saindo ? null : _logout,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            icon: _saindo
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.red,
+                    ),
+                  )
+                : const Icon(Icons.logout),
+            label: const Text(
+              'Sair da conta',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    final saved = await showDialog<bool>(
+  Widget _buildEnderecos(List<Endereco> enderecos) {
+    if (enderecos.isEmpty) {
+      return const _EmptyCard(
+        icon: Icons.location_off_outlined,
+        message:
+            'Nenhum endereço cadastrado. Adicione um endereço para '
+            'receber suas caçambas.',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final endereco in enderecos)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _AddressCard(
+              endereco: endereco,
+              removendo: _removendoEnderecoId == endereco.id,
+              onEdit: () => _editarEndereco(endereco),
+              onRemove: () => _removerEndereco(endereco),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPedidos(List<AsyncValue<Pagina<Aluguel>>> paginas) {
+    final itens = <Widget>[];
+
+    for (var i = 0; i < paginas.length; i++) {
+      final numeroPagina = i + 1;
+      final pagina = paginas[i];
+
+      if (!pagina.hasValue) {
+        itens.add(
+          AsyncValueView<Pagina<Aluguel>>(
+            value: pagina,
+            onRetry: () => ref.invalidate(pedidosClienteProvider(numeroPagina)),
+            data: (_) => const SizedBox.shrink(),
+          ),
+        );
+        break;
+      }
+
+      final dados = pagina.value!;
+
+      if (i == 0 && dados.itens.isEmpty) {
+        return _EmptyCard(
+          icon: Icons.inbox_outlined,
+          message: 'Você ainda não fez nenhum pedido.',
+          actionLabel: 'Ver caçambas',
+          onAction: () => Navigator.of(context).pushNamed(AppRoutes.services),
+        );
+      }
+
+      for (final pedido in dados.itens) {
+        itens.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OrderCard(
+              pedido: pedido,
+              onTap: () => _abrirPedido(pedido),
+            ),
+          ),
+        );
+      }
+
+      if (i == paginas.length - 1 && dados.temProxima) {
+        itens.add(
+          Center(
+            child: TextButton.icon(
+              onPressed: () => setState(() => _paginasDePedidos++),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF267A2D),
+              ),
+              icon: const Icon(Icons.expand_more),
+              label: const Text(
+                'Ver mais pedidos',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Column(children: itens);
+  }
+
+  Future<void> _recarregar() async {
+    setState(() => _paginasDePedidos = 1);
+    ref.invalidate(perfilClienteProvider);
+    ref.invalidate(enderecosClienteProvider);
+    ref.invalidate(pedidosClienteProvider);
+
+    try {
+      await ref.read(perfilClienteProvider.future);
+    } catch (_) {
+      // O erro aparece na própria tela.
+    }
+  }
+
+  Future<void> _editarDadosPessoais(Usuario usuario) async {
+    final salvou = await showDialog<bool>(
+      context: context,
+      builder: (_) => EditarDadosPessoaisDialog(usuario: usuario),
+    );
+
+    if (salvou != true || !mounted) return;
+
+    ref.invalidate(perfilClienteProvider);
+    ref.invalidate(sessaoProvider);
+    _showMessage('Dados atualizados com sucesso.');
+  }
+
+  Future<void> _adicionarEndereco() async {
+    final total = ref.read(enderecosClienteProvider).value?.length ?? 0;
+
+    if (total >= _limiteEnderecos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Você atingiu o limite de $_limiteEnderecos endereços. '
+            'Remova um para cadastrar outro.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final salvou = await showDialog<bool>(
+      context: context,
+      builder: (_) => const EnderecoFormDialog(),
+    );
+
+    if (salvou != true || !mounted) return;
+
+    ref.invalidate(enderecosClienteProvider);
+    _showMessage('Endereço cadastrado.');
+  }
+
+  Future<void> _editarEndereco(Endereco endereco) async {
+    final salvou = await showDialog<bool>(
+      context: context,
+      builder: (_) => EnderecoFormDialog(endereco: endereco),
+    );
+
+    if (salvou != true || !mounted) return;
+
+    ref.invalidate(enderecosClienteProvider);
+    _showMessage('Endereço atualizado.');
+  }
+
+  Future<void> _removerEndereco(Endereco endereco) async {
+    final confirmado = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Editar dados pessoais'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nome'),
-                ),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'E-mail'),
-                ),
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Telefone'),
-                ),
-              ],
-            ),
+          title: const Text('Remover endereço'),
+          content: Text(
+            'Deseja remover ${endereco.logradouro}, ${endereco.numero}?',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
-            ElevatedButton(
+            TextButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Salvar'),
+              child: const Text('Remover', style: TextStyle(color: Colors.red)),
             ),
           ],
         );
       },
     );
 
-    if (saved == true && mounted) {
-      setState(() {
-        name = nameController.text.trim();
-        email = emailController.text.trim();
-        phone = phoneController.text.trim();
-      });
+    if (confirmado != true || !mounted) return;
 
-      _showMessage('Dados atualizados com sucesso.');
+    setState(() => _removendoEnderecoId = endereco.id);
+
+    try {
+      await ref.read(enderecosRepositoryProvider).remover(endereco.id);
+
+      if (!mounted) return;
+      ref.invalidate(enderecosClienteProvider);
+      _showMessage('Endereço removido.');
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _removendoEnderecoId = null);
     }
-
-    nameController.dispose();
-    emailController.dispose();
-    phoneController.dispose();
   }
 
-  Future<void> _editAddress() async {
-    final streetController = TextEditingController(text: street);
-    final complementController = TextEditingController(text: complement);
-    final neighborhoodController = TextEditingController(text: neighborhood);
-    final cityController = TextEditingController(text: city);
-    final stateController = TextEditingController(text: state);
-    final cepController = TextEditingController(text: cep);
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Editar endereço'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: cepController,
-                  decoration: const InputDecoration(labelText: 'CEP'),
-                ),
-                TextField(
-                  controller: streetController,
-                  decoration: const InputDecoration(labelText: 'Endereço'),
-                ),
-                TextField(
-                  controller: complementController,
-                  decoration: const InputDecoration(labelText: 'Complemento'),
-                ),
-                TextField(
-                  controller: neighborhoodController,
-                  decoration: const InputDecoration(labelText: 'Bairro'),
-                ),
-                TextField(
-                  controller: cityController,
-                  decoration: const InputDecoration(labelText: 'Cidade'),
-                ),
-                TextField(
-                  controller: stateController,
-                  decoration: const InputDecoration(labelText: 'Estado'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Salvar'),
-            ),
-          ],
-        );
-      },
+  Future<void> _abrirPedido(Aluguel pedido) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AcompanharPedidoPage(aluguelId: pedido.id),
+      ),
     );
 
-    if (saved == true && mounted) {
-      setState(() {
-        street = streetController.text.trim();
-        complement = complementController.text.trim();
-        neighborhood = neighborhoodController.text.trim();
-        city = cityController.text.trim();
-        state = stateController.text.trim();
-        cep = cepController.text.trim();
-      });
-
-      _showMessage('Endereço atualizado.');
-    }
-
-    streetController.dispose();
-    complementController.dispose();
-    neighborhoodController.dispose();
-    cityController.dispose();
-    stateController.dispose();
-    cepController.dispose();
-  }
-
-  Future<void> _changePassword() async {
-    final passwordController = TextEditingController();
-    final confirmationController = TextEditingController();
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Alterar senha'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Nova senha'),
-              ),
-              TextField(
-                controller: confirmationController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirmar senha'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final valid =
-                    passwordController.text.length >= 6 &&
-                    passwordController.text == confirmationController.text;
-
-                if (valid) {
-                  Navigator.pop(dialogContext, true);
-                }
-              },
-              child: const Text('Alterar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (saved == true && mounted) {
-      _showMessage('Senha alterada com sucesso.');
-    }
-
-    passwordController.dispose();
-    confirmationController.dispose();
-  }
-
-  Future<void> _configureNotifications() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Notificações',
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Atualizações de pedidos'),
-                      value: orderNotifications,
-                      activeTrackColor: AppColors.green,
-                      onChanged: (value) {
-                        setState(() => orderNotifications = value);
-                        setSheetState(() {});
-                      },
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Ofertas e promoções'),
-                      value: offerNotifications,
-                      activeTrackColor: AppColors.green,
-                      onChanged: (value) {
-                        setState(() => offerNotifications = value);
-                        setSheetState(() {});
-                      },
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Mensagens pelo WhatsApp'),
-                      value: whatsappNotifications,
-                      activeTrackColor: AppColors.green,
-                      onChanged: (value) {
-                        setState(() => whatsappNotifications = value);
-                        setSheetState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showPayments() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return const SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 4, 20, 30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Formas de pagamento',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.pix, color: AppColors.green),
-                  title: Text('PIX'),
-                  subtitle: Text('Pagamento instantâneo'),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.credit_card, color: AppColors.green),
-                  title: Text('Cartão de crédito'),
-                  subtitle: Text('Nenhum cartão cadastrado'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    // O status pode ter mudado enquanto o pedido estava aberto.
+    if (mounted) ref.invalidate(pedidosClienteProvider);
   }
 
   void _showSupport() {
@@ -470,10 +464,20 @@ class _PerfilClientePageState extends State<PerfilClientePage> {
       },
     );
 
-    if (confirmed == true && mounted) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saindo = true);
+
+    try {
+      await ref.read(sessaoProvider.notifier).sair();
+    } finally {
+      if (mounted) setState(() => _saindo = false);
     }
+
+    if (!mounted) return;
+
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
   }
 
   void _showMessage(String message) {
@@ -482,6 +486,28 @@ class _PerfilClientePageState extends State<PerfilClientePage> {
     );
   }
 }
+
+/// `01311200` → `01311-200`
+String _formatarCep(String cep) {
+  final digitos = cep.replaceAll(RegExp(r'\D'), '');
+  if (digitos.length != 8) return cep;
+  return '${digitos.substring(0, 5)}-${digitos.substring(5)}';
+}
+
+const _meses = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
 
 class _PageHeader extends StatelessWidget {
   const _PageHeader();
@@ -517,10 +543,30 @@ class _PageHeader extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  final String name;
+  final Usuario usuario;
+
+  /// `null` enquanto o histórico de pedidos carrega (ou se falhar).
+  final int? totalPedidos;
+
   final VoidCallback onEdit;
 
-  const _ProfileCard({required this.name, required this.onEdit});
+  const _ProfileCard({
+    required this.usuario,
+    required this.totalPedidos,
+    required this.onEdit,
+  });
+
+  String get _descricaoConta {
+    final criadoEm = usuario.criadoEm?.toLocal();
+    if (criadoEm == null) return 'Cliente';
+    return 'Cliente • Desde ${_meses[criadoEm.month - 1]} de ${criadoEm.year}';
+  }
+
+  String get _resumoPedidos => switch (totalPedidos) {
+    0 => 'Nenhum pedido realizado',
+    1 => '1 pedido realizado',
+    final total => '$total pedidos realizados',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -557,29 +603,32 @@ class _ProfileCard extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          name,
+                          usuario.nomeCompleto,
                           style: const TextStyle(
                             fontSize: 21,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const _VerifiedBadge(),
+                        if (usuario.status == StatusUsuario.ativo)
+                          const _ActiveBadge(),
                       ],
                     ),
                     const SizedBox(height: 7),
-                    const Text(
-                      'Cliente • Desde outubro de 2024',
-                      style: TextStyle(color: Colors.black54),
+                    Text(
+                      _descricaoConta,
+                      style: const TextStyle(color: Colors.black54),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '3 pedidos realizados   •   1 pedido em andamento',
-                      style: TextStyle(
-                        color: Color(0xFF267A2D),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                    if (totalPedidos != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _resumoPedidos,
+                        style: const TextStyle(
+                          color: Color(0xFF267A2D),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -624,8 +673,8 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-class _VerifiedBadge extends StatelessWidget {
-  const _VerifiedBadge();
+class _ActiveBadge extends StatelessWidget {
+  const _ActiveBadge();
 
   @override
   Widget build(BuildContext context) {
@@ -641,7 +690,7 @@ class _VerifiedBadge extends StatelessWidget {
           Icon(Icons.verified_outlined, color: AppColors.green, size: 15),
           SizedBox(width: 4),
           Text(
-            'Conta verificada',
+            'Conta ativa',
             style: TextStyle(
               color: Color(0xFF267A2D),
               fontSize: 10,
@@ -656,9 +705,16 @@ class _VerifiedBadge extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onEdit;
+  final String actionLabel;
+  final IconData actionIcon;
+  final VoidCallback onAction;
 
-  const _SectionHeader({required this.title, required this.onEdit});
+  const _SectionHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.actionIcon,
+    required this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -671,9 +727,9 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         TextButton.icon(
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined, size: 17),
-          label: const Text('Editar'),
+          onPressed: onAction,
+          icon: Icon(actionIcon, size: 17),
+          label: Text(actionLabel),
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFF267A2D),
             backgroundColor: AppColors.lightGray,
@@ -685,14 +741,18 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _PersonalDataCard extends StatelessWidget {
-  final String email;
-  final String phone;
+  final Usuario usuario;
 
-  const _PersonalDataCard({required this.email, required this.phone});
+  const _PersonalDataCard({required this.usuario});
 
   @override
   Widget build(BuildContext context) {
+    // A API devolve o documento mascarado (ex.: `***.***.789-00`).
+    final documento = usuario.documento;
+    final ehCnpj = documento != null && documento.contains('/');
+
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: AppColors.lightGray,
@@ -702,16 +762,20 @@ class _PersonalDataCard extends StatelessWidget {
         spacing: 40,
         runSpacing: 20,
         children: [
-          _DataItem(icon: Icons.email_outlined, label: 'E-mail', value: email),
-          const _DataItem(
+          _DataItem(
+            icon: Icons.email_outlined,
+            label: 'E-mail',
+            value: usuario.email,
+          ),
+          _DataItem(
             icon: Icons.badge_outlined,
-            label: 'CPF',
-            value: '***.456.789-**',
+            label: ehCnpj ? 'CNPJ' : 'CPF',
+            value: documento ?? '-',
           ),
           _DataItem(
             icon: Icons.phone_outlined,
             label: 'Telefone',
-            value: phone,
+            value: formatPhone(usuario.telefone),
           ),
         ],
       ),
@@ -751,27 +815,30 @@ class _DataItem extends StatelessWidget {
   }
 }
 
+enum _AcaoEndereco { editar, remover }
+
 class _AddressCard extends StatelessWidget {
-  final String street;
-  final String complement;
-  final String neighborhood;
-  final String city;
-  final String state;
-  final String cep;
+  final Endereco endereco;
+  final bool removendo;
+  final VoidCallback onEdit;
+  final VoidCallback onRemove;
 
   const _AddressCard({
-    required this.street,
-    required this.complement,
-    required this.neighborhood,
-    required this.city,
-    required this.state,
-    required this.cep,
+    required this.endereco,
+    required this.removendo,
+    required this.onEdit,
+    required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
+    final local = [
+      if (endereco.bairro.isNotEmpty) endereco.bairro,
+      endereco.cidadeEstado,
+    ].join(' • ');
+
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.fromLTRB(22, 22, 8, 22),
       decoration: BoxDecoration(
         color: AppColors.lightGray,
         borderRadius: BorderRadius.circular(18),
@@ -789,20 +856,17 @@ class _AddressCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  street,
+                  '${endereco.logradouro}, ${endereco.numero}',
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  '$complement • $neighborhood, $city - $state',
-                  style: const TextStyle(color: Colors.black54),
-                ),
+                Text(local, style: const TextStyle(color: Colors.black54)),
                 const SizedBox(height: 7),
                 Text(
-                  'CEP $cep',
+                  'CEP ${_formatarCep(endereco.cep)}',
                   style: const TextStyle(
                     color: Color(0xFF267A2D),
                     fontWeight: FontWeight.w700,
@@ -811,28 +875,164 @@ class _AddressCard extends StatelessWidget {
               ],
             ),
           ),
-          const _DefaultBadge(),
+          if (removendo)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.green,
+                ),
+              ),
+            )
+          else
+            PopupMenuButton<_AcaoEndereco>(
+              tooltip: 'Opções do endereço',
+              onSelected: (acao) {
+                switch (acao) {
+                  case _AcaoEndereco.editar:
+                    onEdit();
+                  case _AcaoEndereco.remover:
+                    onRemove();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _AcaoEndereco.editar,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('Editar'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _AcaoEndereco.remover,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.delete_outline, color: Colors.red),
+                    title: Text('Remover', style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 }
 
-class _DefaultBadge extends StatelessWidget {
-  const _DefaultBadge();
+class _OrderCard extends StatelessWidget {
+  final Aluguel pedido;
+  final VoidCallback onTap;
+
+  const _OrderCard({required this.pedido, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = pedido.statusAluguel;
+    final pagamento = pedido.statusPagamento;
+    final dias = pedido.diasAluguel == 1
+        ? '1 dia'
+        : '${pedido.diasAluguel} dias';
+
+    return Material(
+      color: AppColors.lightGray,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        hoverColor: AppColors.green.withValues(alpha: 0.07),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.receipt_long_outlined,
+                color: AppColors.green,
+                size: 28,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Pedido de ${formatDate(pedido.dataPedido)}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (status != null)
+                          _StatusBadge(
+                            label: status.label,
+                            ativo: status != StatusAluguel.finalizado,
+                          ),
+                      ],
+                    ),
+                    if (pedido.cacambeiroNome != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        pedido.cacambeiroNome!,
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      'Início ${formatDate(pedido.dataInicio)} • $dias',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      [
+                        formatMoney(pedido.precoFinal),
+                        if (pagamento != null) 'Pagamento ${pagamento.label}',
+                      ].join(' • '),
+                      style: const TextStyle(
+                        color: Color(0xFF267A2D),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final bool ativo;
+
+  const _StatusBadge({required this.label, required this.ativo});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.sustainability,
+        color: ativo ? AppColors.sustainability : Colors.white,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Text(
-        'Padrão',
+      child: Text(
+        label,
         style: TextStyle(
-          color: Color(0xFF267A2D),
+          color: ativo ? const Color(0xFF267A2D) : Colors.black54,
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
@@ -841,103 +1041,89 @@ class _DefaultBadge extends StatelessWidget {
   }
 }
 
-class _PreferencesCard extends StatelessWidget {
-  final VoidCallback onPassword;
-  final VoidCallback onNotifications;
-  final VoidCallback onPayments;
-  final VoidCallback onSupport;
+class _EmptyCard extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
-  const _PreferencesCard({
-    required this.onPassword,
-    required this.onNotifications,
-    required this.onPayments,
-    required this.onSupport,
+  const _EmptyCard({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: AppColors.lightGray,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         children: [
-          _PreferenceItem(
-            icon: Icons.lock_outline,
-            title: 'Alterar senha',
-            subtitle: 'Atualizada há 3 meses',
-            onTap: onPassword,
+          Icon(icon, color: Colors.black38, size: 34),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.black54),
           ),
-          _PreferenceItem(
-            icon: Icons.notifications_none,
-            title: 'Notificações',
-            subtitle: 'Pedidos e ofertas ativados',
-            onTap: onNotifications,
-          ),
-          _PreferenceItem(
-            icon: Icons.credit_card_outlined,
-            title: 'Formas de pagamento',
-            subtitle: 'Gerencie cartões e PIX',
-            onTap: onPayments,
-          ),
-          _PreferenceItem(
-            icon: Icons.help_outline,
-            title: 'Ajuda e suporte',
-            subtitle: 'Fale com a equipe Collect Xpress',
-            onTap: onSupport,
-            showDivider: false,
-          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: onAction,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.green,
+                side: const BorderSide(color: AppColors.green),
+              ),
+              child: Text(actionLabel!),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _PreferenceItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
+class _SupportCard extends StatelessWidget {
   final VoidCallback onTap;
-  final bool showDivider;
 
-  const _PreferenceItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.showDivider = true,
-  });
+  const _SupportCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: AppColors.green.withValues(alpha: 0.07),
-        child: Column(
-          children: [
-            ListTile(
-              leading: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.sustainability,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(icon, color: AppColors.green),
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: AppColors.green.withValues(alpha: 0.07),
+          child: ListTile(
+            leading: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.sustainability,
+                borderRadius: BorderRadius.circular(11),
               ),
-              title: Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              subtitle: Text(subtitle),
-              trailing: const Icon(Icons.chevron_right),
+              child: const Icon(Icons.help_outline, color: AppColors.green),
             ),
-            if (showDivider)
-              const Divider(height: 1, indent: 68, color: AppColors.border),
-          ],
+            title: const Text(
+              'Ajuda e suporte',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: const Text('Fale com a equipe Collect Xpress'),
+            trailing: const Icon(Icons.chevron_right),
+          ),
         ),
       ),
     );

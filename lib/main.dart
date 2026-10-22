@@ -47,8 +47,13 @@ import 'features/admin_auth/presentation/pages/admin_register_page.dart';
 import 'core/widgets/app_bottom_navigation.dart';
 
 void main() {
-  runApp(const ProviderScope(child: CollectApp()));
+  runApp(const ProviderScope(retry: _semRetentativa, child: CollectApp()));
 }
+
+// Por padrão o Riverpod repete até 10 vezes um provider que falha. Para
+// erros da API (sessão expirada, não encontrado...) isso só atrasa a
+// mensagem; as telas mostram o erro com um botão "Tentar novamente".
+Duration? _semRetentativa(int retryCount, Object error) => null;
 
 class CollectApp extends StatelessWidget {
   const CollectApp({super.key});
