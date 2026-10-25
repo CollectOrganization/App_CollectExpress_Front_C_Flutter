@@ -4,6 +4,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum UserType { cliente, admin }
 
 class AdminUser {
@@ -232,7 +234,7 @@ class _GestaoUsuariosPageState extends State<GestaoUsuariosPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const PlatformAdminBottomNavigation(currentIndex: 1),
     );
   }
 
@@ -585,6 +587,14 @@ class _UserTypeBadge extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 2,
+),
+}
+
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
 
@@ -629,3 +639,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

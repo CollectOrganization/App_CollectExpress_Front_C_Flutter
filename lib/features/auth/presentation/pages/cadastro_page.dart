@@ -6,6 +6,9 @@ import 'cadastro_cliente_page.dart';
 import 'cadastro_fornecedor_page.dart';
 import 'cadastro_parceiro_reciclagem_page.dart';
 
+//botoes de navegação do rodapé
+//import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum AccountType { cliente, fornecedor, parceiroReciclagem }
 
 class CadastroPage extends StatefulWidget {
@@ -193,7 +196,7 @@ class _CadastroPageState extends State<CadastroPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AuthBottomNavigation(),
+      //bottomNavigationBar: const _AuthBottomNavigation(),
     );
   }
 
@@ -282,7 +285,7 @@ class _CadastroPageState extends State<CadastroPage> {
   }
 
   void _openLogin() {
-   Navigator.of(context).pushReplacementNamed('/login');
+    Navigator.of(context).pushReplacementNamed('/login');
   }
 }
 
@@ -316,6 +319,8 @@ class _FieldLabel extends StatelessWidget {
     );
   }
 }
+/*
+REMOVENDO BOTOES DO RODAPE, POIS NAO SAO MAIS NECESSARIOS
 
 class _AuthBottomNavigation extends StatelessWidget {
   const _AuthBottomNavigation();
@@ -351,3 +356,4 @@ class _AuthBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

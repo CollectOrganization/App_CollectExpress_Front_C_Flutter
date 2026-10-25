@@ -6,6 +6,8 @@ import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 import 'detalhes_pedido_page.dart';
 
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum AdminOrderStatus { novo, emAndamento, concluido }
 
 class AdminOrder {
@@ -163,7 +165,7 @@ class _GestaoPedidosPageState extends State<GestaoPedidosPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(currentIndex: 2),
+      bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 2),
     );
   }
 

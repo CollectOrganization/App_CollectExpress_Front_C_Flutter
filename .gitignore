@@ -46,3 +46,12 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+
+git check-ignore .env
+
+git log --all -- .env
+git ls-files .env
+
+git rm --cached .env
+git commit -m "Remove credenciais do versionamento"

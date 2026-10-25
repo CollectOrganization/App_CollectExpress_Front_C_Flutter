@@ -5,6 +5,9 @@ import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 import 'parceiros_reciclagem_page.dart';
 
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class DetalhesMaterialPage extends StatelessWidget {
   const DetalhesMaterialPage({super.key});
 
@@ -59,7 +62,7 @@ class DetalhesMaterialPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const RecyclingBottomNavigation(currentIndex: 0),
     );
   }
 
@@ -396,6 +399,14 @@ class _ImpactCard extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 0,
+),
+}
+
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
 
@@ -436,3 +447,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

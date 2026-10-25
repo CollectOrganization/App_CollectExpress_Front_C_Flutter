@@ -36,7 +36,7 @@ class PainelAdminPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(currentIndex: 3),
+      bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 0),
     );
   }
 }

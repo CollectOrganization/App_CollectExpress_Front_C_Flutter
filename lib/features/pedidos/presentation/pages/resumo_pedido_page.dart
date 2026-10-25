@@ -5,6 +5,11 @@ import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
+import 'agendar_entrega_page.dart';
+
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class ResumoPedidoPage extends StatefulWidget {
   const ResumoPedidoPage({super.key});
 
@@ -112,7 +117,7 @@ class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(currentIndex: 2),
+      bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 2),
     );
   }
 
@@ -257,12 +262,8 @@ class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
   }
 
   void _finishOrder() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pedido finalizado com sucesso!'),
-        backgroundColor: AppColors.green,
-      ),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AgendarEntregaPage()));
   }
 }
 

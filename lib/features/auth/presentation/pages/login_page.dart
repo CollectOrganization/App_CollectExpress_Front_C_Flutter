@@ -4,6 +4,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../data/auth_service.dart';
 
+import '../../../../core/navigation/app_routes.dart';
+
+//botoes de navegação do rodapé
+//import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -35,9 +40,7 @@ class _LoginPageState extends State<LoginPage> {
         bottom: false,
         child: CustomScrollView(
           slivers: [
-            const SliverToBoxAdapter(
-              child: _PageHeader(),
-            ),
+            const SliverToBoxAdapter(child: _PageHeader()),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 30, 18, 80),
               sliver: SliverToBoxAdapter(
@@ -105,8 +108,9 @@ class _LoginPageState extends State<LoginPage> {
                           style: ElevatedButton.styleFrom(
                             elevation: 0,
                             backgroundColor: const Color(0xFF2F8334),
-                            disabledBackgroundColor:
-                                AppColors.green.withValues(alpha: 0.55),
+                            disabledBackgroundColor: AppColors.green.withValues(
+                              alpha: 0.55,
+                            ),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(11),
@@ -144,17 +148,57 @@ class _LoginPageState extends State<LoginPage> {
                               foregroundColor: const Color(0xFF267A2D),
                               padding: EdgeInsets.zero,
                               minimumSize: Size.zero,
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: const Text(
                               'Cadastre-se',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w800),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 22),
+                      const Row(
+                        children: [
+                          Expanded(child: Divider(color: AppColors.border)),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'ou',
+                              style: TextStyle(
+                                color: Colors.black45,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          Expanded(child: Divider(color: AppColors.border)),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context)
+                                .pushNamed(AppRoutes.adminLogin);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.green,
+                            side: const BorderSide(color: AppColors.green),
+                            overlayColor: AppColors.green.withValues(
+                              alpha: 0.08,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                          ),
+                          icon: const Icon(Icons.admin_panel_settings_outlined),
+                          label: const Text(
+                            'ACESSO ADMINISTRATIVO',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -164,7 +208,7 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AuthBottomNavigation(),
+      //bottomNavigationBar: const _AuthBottomNavigation(),
     );
   }
 
@@ -178,20 +222,14 @@ class _LoginPageState extends State<LoginPage> {
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 17,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
         borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
-        borderSide: const BorderSide(
-          color: AppColors.green,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: AppColors.green, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
@@ -211,9 +249,7 @@ class _LoginPageState extends State<LoginPage> {
       return 'Informe seu e-mail';
     }
 
-    final valid = RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    ).hasMatch(email);
+    final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
 
     if (!valid) {
       return 'Informe um e-mail válido';
@@ -299,9 +335,7 @@ class _PageHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border),
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: const AppLogo(),
     );
@@ -317,13 +351,12 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-      ),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
     );
   }
 }
+/*
+REMOVENDO BOTOES DO RODAPE, POIS NAO SAO MAIS NECESSARIOS
 
 class _AuthBottomNavigation extends StatelessWidget {
   const _AuthBottomNavigation();
@@ -360,3 +393,4 @@ class _AuthBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

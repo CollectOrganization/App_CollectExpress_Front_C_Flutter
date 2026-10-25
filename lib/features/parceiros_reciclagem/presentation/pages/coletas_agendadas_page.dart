@@ -4,6 +4,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum CollectionFilter { proximas, concluidas }
 
 class ScheduledCollection {
@@ -27,9 +30,9 @@ class ScheduledCollection {
 }
 
 class ColetasAgendadasPage extends StatefulWidget {
-  final ScheduledCollection newCollection;
+  final ScheduledCollection? newCollection;
 
-  const ColetasAgendadasPage({super.key, required this.newCollection});
+  const ColetasAgendadasPage({super.key, this.newCollection});
 
   @override
   State<ColetasAgendadasPage> createState() => _ColetasAgendadasPageState();
@@ -45,7 +48,7 @@ class _ColetasAgendadasPageState extends State<ColetasAgendadasPage> {
     super.initState();
 
     collections = [
-      widget.newCollection,
+      if (widget.newCollection != null) widget.newCollection!,
       const ScheduledCollection(
         partnerName: 'Recicla Verde',
         material: 'Garrafas PET',
@@ -138,7 +141,7 @@ class _ColetasAgendadasPageState extends State<ColetasAgendadasPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomNavigation(),
+      bottomNavigationBar: const RecyclingBottomNavigation(currentIndex: 2),
     );
   }
 
@@ -482,6 +485,14 @@ class _InformationRow extends StatelessWidget {
     );
   }
 }
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 2,
+),
+}
+
 
 class _BottomNavigation extends StatelessWidget {
   const _BottomNavigation();
@@ -517,3 +528,4 @@ class _BottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

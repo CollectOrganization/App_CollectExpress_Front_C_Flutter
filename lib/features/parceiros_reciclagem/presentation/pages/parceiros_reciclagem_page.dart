@@ -6,6 +6,9 @@ import '../../../../core/widgets/app_menu_drawer.dart';
 
 import 'agendar_coleta_page.dart';
 
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum PartnerSort { nearest, bestRating, lowestPrice }
 
 class RecyclingPartner {
@@ -143,7 +146,7 @@ class _ParceirosReciclagemPageState extends State<ParceirosReciclagemPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomNavigation(),
+      bottomNavigationBar: const RecyclingBottomNavigation(currentIndex: 1),
     );
   }
 
@@ -405,6 +408,14 @@ class _PartnerCard extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 1,
+),
+}
+
 class _BottomNavigation extends StatelessWidget {
   const _BottomNavigation();
 
@@ -445,3 +456,4 @@ class _BottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

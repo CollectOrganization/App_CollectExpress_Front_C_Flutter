@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../navigation/app_routes.dart';
 import '../theme/app_colors.dart';
 import 'app_logo.dart';
 import '../../features/auth/data/auth_service.dart';
@@ -7,13 +8,29 @@ import '../../features/auth/data/auth_service.dart';
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
 
-  void _close(BuildContext context) {
+  void _closeDrawer(BuildContext context) {
     Navigator.of(context).pop();
+  }
+
+  void _navigate(BuildContext context, String routeName) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    final navigator = Navigator.of(context);
+
+    // Fecha o drawer.
+    navigator.pop();
+
+    // Não navega novamente se já estiver na rota selecionada.
+    if (currentRoute == routeName) {
+      return;
+    }
+
+    navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final currentRoute = ModalRoute.of(context)?.settings.name;
 
     return ValueListenableBuilder<Map<String, dynamic>?>(
       valueListenable: AuthService.currentUserNotifier,
@@ -34,12 +51,18 @@ class AppMenuDrawer extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(24, 20, 18, 12),
                   child: Row(
                     children: [
-                      const Expanded(child: AppLogo()),
+                      Expanded(
+                        child: AppLogo(
+                          onTap: () => _navigate(context, AppRoutes.home),
+                        ),
+                      ),
                       IconButton(
-                        onPressed: () => _close(context),
+                        tooltip: 'Fechar menu',
+                        onPressed: () => _closeDrawer(context),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.black54,
                           foregroundColor: Colors.white,
+                          hoverColor: Colors.black87,
                         ),
                         icon: const Icon(Icons.close, size: 17),
                       ),
@@ -52,13 +75,15 @@ class AppMenuDrawer extends StatelessWidget {
                   child: _AccountCard(
                     user: user,
                     onTap: () {
-                      _close(context);
+                      _closeDrawer(context);
                       if (isLoggedIn) {
                         if (isAdmin) {
-                          Navigator.of(context).pushReplacementNamed('/admin');
+                          _navigate(context, AppRoutes.supplierHome);
+                        } else {
+                          _navigate(context, AppRoutes.customerProfile);
                         }
                       } else {
-                        Navigator.of(context).pushNamed('/login');
+                        Navigator.of(context).pushNamed(AppRoutes.login);
                       }
                     },
                   ),
@@ -74,60 +99,48 @@ class AppMenuDrawer extends StatelessWidget {
                         AppDrawerItem(
                           icon: Icons.home_outlined,
                           title: 'INÍCIO',
-                          onTap: () {
-                            _close(context);
-                            Navigator.of(context).pushReplacementNamed('/home');
-                          },
+                          selected: currentRoute == AppRoutes.home,
+                          onTap: () => _navigate(context, AppRoutes.home),
                         ),
                         AppDrawerItem(
                           icon: Icons.local_shipping_outlined,
                           title: 'SERVIÇOS',
-                          onTap: () {
-                            _close(context);
-                            Navigator.of(context).pushReplacementNamed('/cacambas');
-                          },
+                          selected: currentRoute == AppRoutes.services,
+                          onTap: () => _navigate(context, AppRoutes.services),
                         ),
                         AppDrawerItem(
                           icon: Icons.grid_view_outlined,
                           title: 'MODELOS',
-                          onTap: () {
-                            _close(context);
-                            Navigator.of(context).pushReplacementNamed('/cacambas');
-                          },
+                          selected: currentRoute == AppRoutes.models,
+                          onTap: () => _navigate(context, AppRoutes.models),
                         ),
                         if (isAdmin) ...[
                           AppDrawerItem(
                             icon: Icons.admin_panel_settings_outlined,
                             title: 'PAINEL ADMIN',
-                            onTap: () {
-                              _close(context);
-                              Navigator.of(context).pushReplacementNamed('/admin');
-                            },
+                            selected: currentRoute == AppRoutes.supplierHome,
+                            onTap: () => _navigate(context, AppRoutes.supplierHome),
                           ),
                           AppDrawerItem(
                             icon: Icons.assignment_outlined,
                             title: 'GESTÃO PEDIDOS',
-                            onTap: () {
-                              _close(context);
-                              Navigator.of(context).pushReplacementNamed('/admin/pedidos');
-                            },
+                            selected: currentRoute == AppRoutes.supplierOrders,
+                            onTap: () => _navigate(context, AppRoutes.supplierOrders),
                           ),
                         ],
                         if (!isLoggedIn)
                           AppDrawerItem(
-                            icon: Icons.login_rounded,
+                            icon: Icons.login_outlined,
                             title: 'LOGIN',
-                            onTap: () {
-                              _close(context);
-                              Navigator.of(context).pushNamed('/login');
-                            },
+                            selected: currentRoute == AppRoutes.login,
+                            onTap: () => _navigate(context, AppRoutes.login),
                           ),
                         if (isLoggedIn)
                           AppDrawerItem(
                             icon: Icons.logout_rounded,
                             title: 'SAIR',
                             onTap: () async {
-                              _close(context);
+                              _closeDrawer(context);
                               await AuthService().logout();
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -137,7 +150,7 @@ class AppMenuDrawer extends StatelessWidget {
                                   ),
                                 );
                                 Navigator.of(context).pushNamedAndRemoveUntil(
-                                  '/login',
+                                  AppRoutes.login,
                                   (route) => false,
                                 );
                               }
@@ -148,7 +161,11 @@ class AppMenuDrawer extends StatelessWidget {
                   ),
                 ),
 
-                AppDrawerFooter(isLoggedIn: isLoggedIn),
+                AppDrawerFooter(
+                  isLoggedIn: isLoggedIn,
+                  onRegister: () => _navigate(context, AppRoutes.register),
+                  onAbout: () => _navigate(context, AppRoutes.about),
+                ),
               ],
             ),
           ),
@@ -191,9 +208,11 @@ class _AccountCard extends StatelessWidget {
     return Material(
       color: const Color(0xFFD7D7D7),
       borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        hoverColor: Colors.black.withValues(alpha: 0.06),
+        splashColor: AppColors.green.withValues(alpha: 0.15),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -237,8 +256,7 @@ class _AccountCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isLoggedIn)
-                const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.black45),
+              const Icon(Icons.chevron_right, color: Colors.black54),
             ],
           ),
         ),
@@ -272,9 +290,11 @@ class AppDrawerItem extends StatelessWidget {
             ? AppColors.green.withValues(alpha: 0.13)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          hoverColor: AppColors.green.withValues(alpha: 0.09),
+          splashColor: AppColors.green.withValues(alpha: 0.18),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
             child: Row(
@@ -303,8 +323,15 @@ class AppDrawerItem extends StatelessWidget {
 
 class AppDrawerFooter extends StatelessWidget {
   final bool isLoggedIn;
+  final VoidCallback onRegister;
+  final VoidCallback onAbout;
 
-  const AppDrawerFooter({super.key, this.isLoggedIn = false});
+  const AppDrawerFooter({
+    super.key,
+    this.isLoggedIn = false,
+    required this.onRegister,
+    required this.onAbout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -313,21 +340,18 @@ class AppDrawerFooter extends StatelessWidget {
       child: Column(
         children: [
           const Divider(color: Colors.black38),
-          const SizedBox(height: 14),
-
+          const SizedBox(height: 18),
           if (!isLoggedIn) ...[
             SizedBox(
               width: double.infinity,
-              height: 52,
+              height: 54,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).pushNamed('/cadastro');
-                },
+                onPressed: onRegister,
                 style: ElevatedButton.styleFrom(
                   elevation: 0,
                   backgroundColor: AppColors.yellow,
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  overlayColor: Colors.black.withValues(alpha: 0.08),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(9),
                   ),
@@ -341,16 +365,14 @@ class AppDrawerFooter extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-
           SizedBox(
             width: double.infinity,
             height: 52,
             child: OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: onAbout,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.black,
+                overlayColor: AppColors.green.withValues(alpha: 0.09),
                 side: const BorderSide(color: Colors.black, width: 1.3),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(9),
@@ -362,9 +384,7 @@ class AppDrawerFooter extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 18),
-
+          const SizedBox(height: 20),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(11),
@@ -398,9 +418,7 @@ class AppDrawerFooter extends StatelessWidget {
               ],
             ),
           ),
-
-          const SizedBox(height: 14),
-
+          const SizedBox(height: 16),
           const Text(
             '☎  Suporte WhatsApp: (11) 99999-9999',
             textAlign: TextAlign.center,

@@ -3,10 +3,17 @@ FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    git-lfs \
     unzip \
     xz-utils \
     zip \
     libglu1-mesa \
+    clang \
+    cmake \
+    ninja-build \
+    pkg-config \
+    libgtk-3-dev \
+    liblzma-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth 1 \

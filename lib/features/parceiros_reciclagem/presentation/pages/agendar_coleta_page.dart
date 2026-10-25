@@ -6,6 +6,9 @@ import '../../../../core/widgets/app_menu_drawer.dart';
 
 import 'coletas_agendadas_page.dart';
 
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class AgendarColetaPage extends StatefulWidget {
   final String partnerName;
   final double pricePerKg;
@@ -92,7 +95,7 @@ class _AgendarColetaPageState extends State<AgendarColetaPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomNavigation(),
+      bottomNavigationBar: const RecyclingBottomNavigation(currentIndex: 2),
     );
   }
 
@@ -650,6 +653,14 @@ class _AddressSection extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 2,
+),
+}
+
 class _BottomNavigation extends StatelessWidget {
   const _BottomNavigation();
 
@@ -690,3 +701,4 @@ class _BottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

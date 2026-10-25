@@ -4,6 +4,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class ConfiguracoesAdminPage extends StatefulWidget {
   const ConfiguracoesAdminPage({super.key});
 
@@ -188,7 +190,7 @@ class _ConfiguracoesAdminPageState extends State<ConfiguracoesAdminPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const PlatformAdminBottomNavigation(currentIndex: 4),
     );
   }
 
@@ -991,6 +993,14 @@ class _LogItem extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 4,
+),
+}
+
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
 
@@ -1032,3 +1042,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

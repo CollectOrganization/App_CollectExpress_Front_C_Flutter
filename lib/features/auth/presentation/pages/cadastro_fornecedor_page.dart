@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/services/cep_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 
@@ -15,12 +17,12 @@ class CadastroFornecedorPage extends StatefulWidget {
   });
 
   @override
-  State<CadastroFornecedorPage> createState() =>
-      _CadastroFornecedorPageState();
+  State<CadastroFornecedorPage> createState() => _CadastroFornecedorPageState();
 }
 
 class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
   final _formKey = GlobalKey<FormState>();
+  final _cepService = CepService();
 
   final _companyController = TextEditingController();
   final _cnpjController = TextEditingController();
@@ -28,9 +30,15 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
   final _cpfController = TextEditingController();
   final _confirmEmailController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
   final _cepController = TextEditingController();
   final _addressController = TextEditingController();
+  final _neighborhoodController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _complementController = TextEditingController();
   final _numberController = TextEditingController();
+
   final _regionController = TextEditingController();
   final _phone1Controller = TextEditingController();
   final _phone2Controller = TextEditingController();
@@ -38,11 +46,13 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
 
-  String selectedCategory = 'Remoção de Entulhos';
+  String _selectedCategory = 'Remoção de Entulhos';
+  String? _lastSearchedCep;
 
-  bool obscurePassword = true;
-  bool obscureConfirmPassword = true;
-  bool isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  bool _isLoadingCep = false;
 
   @override
   void initState() {
@@ -62,12 +72,19 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
     _confirmEmailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+
     _cepController.dispose();
     _addressController.dispose();
+    _neighborhoodController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _complementController.dispose();
     _numberController.dispose();
+
     _regionController.dispose();
     _phone1Controller.dispose();
     _phone2Controller.dispose();
+
     super.dispose();
   }
 
@@ -99,16 +116,14 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                       const SizedBox(height: 4),
                       const Text(
                         'Preencha os dados da empresa',
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontSize: 16,
-                        ),
+                        style: TextStyle(color: Colors.black54, fontSize: 16),
                       ),
                       const SizedBox(height: 28),
+
                       _buildField(
                         label: 'Nome da Empresa',
                         controller: _companyController,
-                        hint: 'Razão social ou Nome fantasia',
+                        hint: 'Razão social ou nome fantasia',
                         validator: _requiredValidator,
                       ),
                       _buildField(
@@ -151,15 +166,18 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                         label: 'Senha',
                         controller: _passwordController,
                         hint: 'Senha de acesso',
-                        obscureText: obscurePassword,
+                        obscureText: _obscurePassword,
                         suffixIcon: IconButton(
+                          tooltip: _obscurePassword
+                              ? 'Mostrar senha'
+                              : 'Ocultar senha',
                           onPressed: () {
                             setState(() {
-                              obscurePassword = !obscurePassword;
+                              _obscurePassword = !_obscurePassword;
                             });
                           },
                           icon: Icon(
-                            obscurePassword
+                            _obscurePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                           ),
@@ -170,22 +188,26 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                         label: 'Confirmar Senha',
                         controller: _confirmPasswordController,
                         hint: 'Confirme sua senha',
-                        obscureText: obscureConfirmPassword,
+                        obscureText: _obscureConfirmPassword,
                         suffixIcon: IconButton(
+                          tooltip: _obscureConfirmPassword
+                              ? 'Mostrar senha'
+                              : 'Ocultar senha',
                           onPressed: () {
                             setState(() {
-                              obscureConfirmPassword =
-                                  !obscureConfirmPassword;
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword;
                             });
                           },
                           icon: Icon(
-                            obscureConfirmPassword
+                            _obscureConfirmPassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                           ),
                         ),
                         validator: _validatePasswordConfirmation,
                       ),
+
                       _buildField(
                         label: 'CEP',
                         controller: _cepController,
@@ -194,12 +216,60 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                         inputFormatters: _digitsOnly(8),
                         validator: _validateCep,
                         onChanged: _searchAddressByCep,
+                        suffixIcon: _isLoadingCep
+                            ? const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.green,
+                                  ),
+                                ),
+                              )
+                            : IconButton(
+                                tooltip: 'Consultar CEP',
+                                onPressed: () {
+                                  _searchAddressByCep(
+                                    _cepController.text,
+                                    force: true,
+                                  );
+                                },
+                                icon: const Icon(Icons.search),
+                              ),
                       ),
                       _buildField(
                         label: 'Endereço',
                         controller: _addressController,
-                        hint: 'Endereço comercial',
+                        hint: 'Rua, avenida ou logradouro',
                         validator: _requiredValidator,
+                      ),
+                      _buildField(
+                        label: 'Bairro',
+                        controller: _neighborhoodController,
+                        hint: 'Bairro',
+                        validator: _requiredValidator,
+                      ),
+                      _buildField(
+                        label: 'Cidade',
+                        controller: _cityController,
+                        hint: 'Cidade',
+                        readOnly: true,
+                        validator: _requiredValidator,
+                      ),
+                      _buildField(
+                        label: 'Estado',
+                        controller: _stateController,
+                        hint: 'UF',
+                        readOnly: true,
+                        validator: _requiredValidator,
+                      ),
+                      _buildField(
+                        label: 'Complemento',
+                        controller: _complementController,
+                        hint: 'Sala, bloco ou referência (opcional)',
+                        validator: (_) => null,
                       ),
                       _buildField(
                         label: 'Número',
@@ -208,6 +278,7 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                         keyboardType: TextInputType.number,
                         validator: _requiredValidator,
                       ),
+
                       _buildField(
                         label: 'Região de Atendimento',
                         controller: _regionController,
@@ -230,10 +301,11 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                         inputFormatters: _digitsOnly(11),
                         validator: _validateOptionalPhone,
                       ),
+
                       const _FieldLabel('Categoria de Serviço'),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        initialValue: selectedCategory,
+                        initialValue: _selectedCategory,
                         isExpanded: true,
                         decoration: _inputDecoration(),
                         items: const [
@@ -259,28 +331,32 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
                           ),
                         ],
                         onChanged: (value) {
-                          if (value != null) {
-                            setState(() => selectedCategory = value);
-                          }
+                          if (value == null) return;
+
+                          setState(() {
+                            _selectedCategory = value;
+                          });
                         },
                       ),
+
                       const SizedBox(height: 38),
                       SizedBox(
                         width: double.infinity,
                         height: 57,
                         child: ElevatedButton(
-                          onPressed: isLoading ? null : _register,
+                          onPressed: _isLoading ? null : _register,
                           style: ElevatedButton.styleFrom(
                             elevation: 0,
                             backgroundColor: const Color(0xFF2F8334),
-                            disabledBackgroundColor:
-                                AppColors.green.withValues(alpha: 0.55),
+                            disabledBackgroundColor: AppColors.green.withValues(
+                              alpha: 0.55,
+                            ),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(11),
                             ),
                           ),
-                          child: isLoading
+                          child: _isLoading
                               ? const SizedBox(
                                   width: 23,
                                   height: 23,
@@ -306,7 +382,6 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AuthBottomNavigation(),
     );
   }
 
@@ -326,6 +401,7 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
     List<TextInputFormatter>? inputFormatters,
     Widget? suffixIcon,
     bool obscureText = false,
+    bool readOnly = false,
     ValueChanged<String>? onChanged,
   }) {
     return Padding(
@@ -337,6 +413,7 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
           const SizedBox(height: 8),
           TextFormField(
             controller: controller,
+            readOnly: readOnly,
             keyboardType: keyboardType,
             textInputAction: TextInputAction.next,
             inputFormatters: inputFormatters,
@@ -346,6 +423,7 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
             decoration: _inputDecoration(
               hintText: hint,
               suffixIcon: suffixIcon,
+              fillColor: readOnly ? AppColors.lightGray : Colors.white,
             ),
           ),
         ],
@@ -356,27 +434,22 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
   InputDecoration _inputDecoration({
     String? hintText,
     Widget? suffixIcon,
+    Color fillColor = Colors.white,
   }) {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(color: Colors.black38),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 17,
-      ),
+      fillColor: fillColor,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
         borderSide: const BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
-        borderSide: const BorderSide(
-          color: AppColors.green,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: AppColors.green, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
@@ -446,9 +519,7 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
       return 'Informe o e-mail';
     }
 
-    final isValid = RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    ).hasMatch(email);
+    final isValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
 
     return isValid ? null : 'Informe um e-mail válido';
   }
@@ -512,13 +583,86 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
     return null;
   }
 
-  void _searchAddressByCep(String value) {
+  Future<void> _searchAddressByCep(String value, {bool force = false}) async {
     final cep = value.replaceAll(RegExp(r'\D'), '');
 
-    if (cep.length == 8) {
-      // A consulta do CEP será integrada posteriormente.
-      FocusScope.of(context).nextFocus();
+    if (cep.length != 8) {
+      _lastSearchedCep = null;
+      return;
     }
+
+    if (_isLoadingCep) return;
+
+    if (!force && cep == _lastSearchedCep) {
+      return;
+    }
+
+    _lastSearchedCep = cep;
+
+    setState(() {
+      _isLoadingCep = true;
+    });
+
+    try {
+      final address = await _cepService.findAddress(cep);
+
+      if (!mounted) return;
+
+      final currentCep = _cepController.text.replaceAll(RegExp(r'\D'), '');
+
+      // Evita preencher o formulário com uma consulta antiga.
+      if (currentCep != cep) return;
+
+      _addressController.text = address.street;
+      _neighborhoodController.text = address.neighborhood;
+      _cityController.text = address.city;
+      _stateController.text = address.state;
+
+      if (_complementController.text.trim().isEmpty) {
+        _complementController.text = address.complement;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Endereço encontrado.'),
+          backgroundColor: AppColors.green,
+        ),
+      );
+    } on CepException catch (error) {
+      if (!mounted) return;
+
+      _lastSearchedCep = null;
+      _clearAddressFields();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      _lastSearchedCep = null;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível consultar o CEP.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCep = false;
+        });
+      }
+    }
+  }
+
+  void _clearAddressFields() {
+    _addressController.clear();
+    _neighborhoodController.clear();
+    _cityController.clear();
+    _stateController.clear();
+    _complementController.clear();
   }
 
   Future<void> _register() async {
@@ -526,14 +670,18 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
 
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
-    // Será substituído pela integração com a API.
+    // Será substituído pela integração com a API do projeto.
     await Future<void>.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
 
-    setState(() => isLoading = false);
+    setState(() {
+      _isLoading = false;
+    });
 
     await showDialog<void>(
       context: context,
@@ -565,10 +713,8 @@ class _CadastroFornecedorPageState extends State<CadastroFornecedorPage> {
 
     if (!mounted) return;
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login',
-      (route) => false,
-    );
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 }
 
@@ -582,9 +728,7 @@ class _PageHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border),
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: const AppLogo(),
     );
@@ -600,46 +744,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _AuthBottomNavigation extends StatelessWidget {
-  const _AuthBottomNavigation();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 3,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: const Color(0xFF267A2D),
-      unselectedItemColor: Colors.black54,
-      onTap: (index) {
-        // Será implementado durante a componentização.
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Perfil',
-        ),
-      ],
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
     );
   }
 }

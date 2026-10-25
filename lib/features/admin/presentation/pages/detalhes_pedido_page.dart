@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
+import '../../../../core/navigation/app_routes.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+
+import '../../../../core/widgets/app_bottom_navigation.dart';
 
 class DetalhesPedidoPage extends StatefulWidget {
   const DetalhesPedidoPage({super.key});
@@ -23,7 +26,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
         bottom: false,
         child: CustomScrollView(
           slivers: [
-            const SliverToBoxAdapter(child: _AdminHeader()),
+            const SliverToBoxAdapter(child: _DetailsHeader()),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 30, 18, 70),
               sliver: SliverList(
@@ -103,7 +106,7 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 2),
     );
   }
 
@@ -129,56 +132,53 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
   }
 }
 
-class _AdminHeader extends StatelessWidget {
-  const _AdminHeader();
+class _DetailsHeader extends StatelessWidget {
+  const _DetailsHeader();
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
       decoration: const BoxDecoration(
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Expanded(child: AppLogo()),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF6E8),
-              borderRadius: BorderRadius.circular(18),
+          const SizedBox(width: 16),
+          OutlinedButton.icon(
+            onPressed: () => _goBack(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.black87,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Row(
-              children: [
-                CircleAvatar(radius: 4, backgroundColor: AppColors.green),
-                SizedBox(width: 6),
-                Text(
-                  'Painel Admin',
-                  style: TextStyle(
-                    color: AppColors.green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
-          ),
-          const SizedBox(width: 10),
-          Builder(
-            builder: (context) {
-              return IconButton(
-                onPressed: () => Scaffold.of(context).openEndDrawer(),
-                style: IconButton.styleFrom(
-                  backgroundColor: AppColors.lightGray,
-                  minimumSize: const Size(46, 46),
-                ),
-                icon: const Icon(Icons.menu_rounded),
-              );
-            },
           ),
         ],
       ),
     );
+  }
+
+  void _goBack(BuildContext context) {
+    final navigator = Navigator.of(context);
+
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    navigator.pushReplacementNamed(AppRoutes.supplierOrders);
   }
 }
 
@@ -465,6 +465,14 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 2,
+),
+}
+
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
 
@@ -497,3 +505,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

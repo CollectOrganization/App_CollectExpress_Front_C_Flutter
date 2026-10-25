@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
-import '../../../../core/widgets/app_bottom_navigation.dart';
-
 import 'cacamba_details_page.dart';
 
 class CacambasPage extends StatefulWidget {
@@ -15,13 +14,18 @@ class CacambasPage extends StatefulWidget {
 }
 
 class _CacambasPageState extends State<CacambasPage> {
-  String selectedFilter = 'Todas';
+  static const allCategory = 'Todas';
+  static const constructionCategory = 'Obras/Entulho';
+  static const cleaningCategory = 'Limpeza/Podas';
+  static const recyclingCategory = 'Recicláveis';
+
+  String selectedFilter = allCategory;
 
   final List<String> filters = const [
-    'Todas',
-    'Obras/Entulho',
-    'Limpeza/Podas',
-    'Recicláveis',
+    allCategory,
+    constructionCategory,
+    cleaningCategory,
+    recyclingCategory,
   ];
 
   final List<Cacamba> cacambas = const [
@@ -32,6 +36,7 @@ class _CacambasPageState extends State<CacambasPage> {
       capacity: 'Até 3 toneladas',
       price: 280,
       imagePath: 'assets/images/cacamba_3m.jpg',
+      category: constructionCategory,
     ),
     Cacamba(
       title: 'Caçamba 5m³ (Média)',
@@ -40,16 +45,37 @@ class _CacambasPageState extends State<CacambasPage> {
       capacity: 'Até 5 toneladas',
       price: 350,
       imagePath: 'assets/images/cacamba_5m.jpg',
+      category: constructionCategory,
     ),
     Cacamba(
-      title: 'Caçamba 7m³ (Grande)',
+      title: 'Caçamba 3m³ para Podas',
+      volume: '3m³',
+      recommendation: 'Galhos, folhas e resíduos de jardinagem',
+      capacity: 'Até 3 toneladas',
+      price: 290,
+      imagePath: 'assets/images/cacamba_3m.jpg',
+      category: cleaningCategory,
+    ),
+    Cacamba(
+      title: 'Caçamba 7m³ para Recicláveis',
       volume: '7m³',
-      recommendation: 'Demolições e grandes volumes comerciais',
+      recommendation: 'Papel, plástico, metal e grandes volumes',
       capacity: 'Até 7 toneladas',
       price: 420,
       imagePath: 'assets/images/cacamba_7m.jpg',
+      category: recyclingCategory,
     ),
   ];
+
+  List<Cacamba> get filteredCacambas {
+    if (selectedFilter == allCategory) {
+      return cacambas;
+    }
+
+    return cacambas
+        .where((cacamba) => cacamba.category == selectedFilter)
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,13 +91,14 @@ class _CacambasPageState extends State<CacambasPage> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(28, 22, 28, 24),
                 child: Builder(
-                  builder: (context) {
+                  builder: (scaffoldContext) {
                     return Row(
                       children: [
                         const Expanded(child: AppLogo()),
                         IconButton(
+                          tooltip: 'Abrir menu',
                           onPressed: () {
-                            Scaffold.of(context).openEndDrawer();
+                            Scaffold.of(scaffoldContext).openEndDrawer();
                           },
                           style: IconButton.styleFrom(
                             backgroundColor: AppColors.lightGray,
@@ -110,7 +137,9 @@ class _CacambasPageState extends State<CacambasPage> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: filters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        separatorBuilder: (_, _) {
+                          return const SizedBox(width: 8);
+                        },
                         itemBuilder: (context, index) {
                           final filter = filters[index];
                           final selected = selectedFilter == filter;
@@ -144,25 +173,32 @@ class _CacambasPageState extends State<CacambasPage> {
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              sliver: SliverList.separated(
-                itemCount: cacambas.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 18),
-                itemBuilder: (context, index) {
-                  return CacambaCard(
-                    cacamba: cacambas[index],
-                    onRent: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CacambaDetailsPage(),
-                        ),
-                      );
-                    },
-                  );
-                },
+            if (filteredCacambas.isEmpty)
+              const SliverToBoxAdapter(child: _EmptyResult())
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                sliver: SliverList.separated(
+                  itemCount: filteredCacambas.length,
+                  separatorBuilder: (_, _) {
+                    return const SizedBox(height: 18);
+                  },
+                  itemBuilder: (context, index) {
+                    final cacamba = filteredCacambas[index];
+
+                    return CacambaCard(
+                      cacamba: cacamba,
+                      onRent: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CacambaDetailsPage(),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.only(top: 28),
@@ -171,6 +207,28 @@ class _CacambasPageState extends State<CacambasPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EmptyResult extends StatelessWidget {
+  const _EmptyResult();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 50),
+      child: Column(
+        children: [
+          Icon(Icons.search_off_outlined, size: 48, color: Colors.black38),
+          SizedBox(height: 12),
+          Text(
+            'Nenhuma caçamba encontrada nesta categoria.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black54, fontSize: 14),
+          ),
+        ],
       ),
     );
   }
@@ -187,7 +245,7 @@ class CacambaCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
+        color: AppColors.lightGray,
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
@@ -218,6 +276,7 @@ class CacambaCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
@@ -229,6 +288,7 @@ class CacambaCard extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -249,7 +309,9 @@ class CacambaCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          _CategoryBadge(category: cacamba.category),
+          const SizedBox(height: 9),
           Text(
             'Recomendado para: ${cacamba.recommendation}',
             style: const TextStyle(color: Colors.black54, fontSize: 13),
@@ -318,6 +380,32 @@ class CacambaCard extends StatelessWidget {
   }
 }
 
+class _CategoryBadge extends StatelessWidget {
+  final String category;
+
+  const _CategoryBadge({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        category,
+        style: const TextStyle(
+          color: AppColors.green,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class Cacamba {
   final String title;
   final String volume;
@@ -325,6 +413,7 @@ class Cacamba {
   final String capacity;
   final double price;
   final String imagePath;
+  final String category;
 
   const Cacamba({
     required this.title,
@@ -333,6 +422,7 @@ class Cacamba {
     required this.capacity,
     required this.price,
     required this.imagePath,
+    required this.category,
   });
 }
 
@@ -385,4 +475,7 @@ class SustainabilityFooter extends StatelessWidget {
     );
   }
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> upstream/main

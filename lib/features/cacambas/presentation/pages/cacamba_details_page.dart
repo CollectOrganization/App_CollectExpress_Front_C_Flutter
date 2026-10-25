@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
+import '../../../../core/navigation/app_routes.dart';
 
 import '../../../pedidos/presentation/pages/resumo_pedido_page.dart';
+
+//botoes de navegação do rodapé
+import '../../../../core/widgets/app_bottom_navigation.dart';
 
 class CacambaDetailsPage extends StatefulWidget {
   const CacambaDetailsPage({super.key});
@@ -24,7 +28,7 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              _DetailsHeader(onBack: () => Navigator.of(context).pop()),
+              const _DetailsHeader(),
               AspectRatio(
                 aspectRatio: 1.75,
                 child: Image.asset(
@@ -134,7 +138,7 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
           ),
         ),
       ),
-      bottomNavigationBar: const _DetailsBottomNavigation(),
+      bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 1),
     );
   }
 
@@ -227,33 +231,50 @@ class _CacambaDetailsPageState extends State<CacambaDetailsPage> {
 }
 
 class _DetailsHeader extends StatelessWidget {
-  final VoidCallback onBack;
-
-  const _DetailsHeader({required this.onBack});
+  const _DetailsHeader();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 105,
-      child: Stack(
-        alignment: Alignment.center,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
         children: [
-          Positioned(
-            left: 18,
-            child: TextButton.icon(
-              onPressed: onBack,
-              style: TextButton.styleFrom(foregroundColor: Colors.black),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text(
-                'Voltar',
-                style: TextStyle(fontWeight: FontWeight.w700),
+          const Expanded(child: AppLogo()),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: () => _goBack(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.black87,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text(
+              'Voltar',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
-          Transform.scale(scale: 0.72, child: AppLogo()),
         ],
       ),
     );
+  }
+
+  void _goBack(BuildContext context) {
+    final navigator = Navigator.of(context);
+
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      navigator.pushReplacementNamed(AppRoutes.services);
+    }
   }
 }
 
@@ -407,6 +428,14 @@ class _SustainabilityFooter extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 1,
+),
+}
+
 class _DetailsBottomNavigation extends StatelessWidget {
   const _DetailsBottomNavigation();
 
@@ -439,3 +468,4 @@ class _DetailsBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

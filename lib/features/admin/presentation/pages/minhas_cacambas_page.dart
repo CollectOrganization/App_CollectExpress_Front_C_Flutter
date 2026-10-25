@@ -6,6 +6,8 @@ import '../../../../core/widgets/app_menu_drawer.dart';
 import '../../domain/models/admin_cacamba.dart';
 import 'cadastrar_cacamba_page.dart';
 
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 class MinhasCacambasPage extends StatefulWidget {
   const MinhasCacambasPage({super.key});
 
@@ -175,7 +177,7 @@ class _MinhasCacambasPageState extends State<MinhasCacambasPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 1),
     );
   }
 
@@ -386,6 +388,13 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 }
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 2,
+),
+}
 
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
@@ -419,3 +428,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/

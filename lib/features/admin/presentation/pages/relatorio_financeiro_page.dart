@@ -4,6 +4,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
 enum FinancialPeriod { hoje, semana, mes, ano }
 
 class RelatorioFinanceiroPage extends StatefulWidget {
@@ -97,7 +99,7 @@ class _RelatorioFinanceiroPageState extends State<RelatorioFinanceiroPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const _AdminBottomNavigation(),
+      bottomNavigationBar: const PlatformAdminBottomNavigation(currentIndex: 3),
     );
   }
 }
@@ -506,6 +508,14 @@ class _TransactionCard extends StatelessWidget {
   }
 }
 
+/*
+REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
+{
+bottomNavigationBar: const SupplierBottomNavigation(
+  currentIndex: 3,
+),
+}
+
 class _AdminBottomNavigation extends StatelessWidget {
   const _AdminBottomNavigation();
 
@@ -546,3 +556,4 @@ class _AdminBottomNavigation extends StatelessWidget {
     );
   }
 }
+*/
