@@ -12,7 +12,10 @@ class ApiClient {
   }
 
   ApiClient._internal() {
-    final String baseUrl = dotenv.env['API_URL'] ?? 'http://localhost:3001/api';
+    const envApiUrl = String.fromEnvironment('API_URL');
+    final String baseUrl = envApiUrl.isNotEmpty
+        ? envApiUrl
+        : (dotenv.env['API_URL'] ?? 'http://localhost:3001/api');
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
