@@ -475,7 +475,3 @@ class SustainabilityFooter extends StatelessWidget {
     );
   }
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/main
