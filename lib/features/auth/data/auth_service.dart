@@ -54,11 +54,21 @@ class AuthService {
       final usuario = data['usuario'] as Map<String, dynamic>?;
 
       if (accessToken != null) {
-        await _storage.write(key: _accessTokenKey, value: accessToken);
+        try {
+          await _storage.write(key: _accessTokenKey, value: accessToken);
+        } catch (e) {
+          debugPrint('Storage write token aviso: $e');
+        }
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_accessTokenKey, accessToken);
       }
 
       if (refreshToken != null) {
-        await _storage.write(key: _refreshTokenKey, value: refreshToken);
+        try {
+          await _storage.write(key: _refreshTokenKey, value: refreshToken);
+        } catch (e) {
+          debugPrint('Storage write refresh aviso: $e');
+        }
       }
 
       if (usuario != null) {
@@ -113,9 +123,14 @@ class AuthService {
     } catch (_) {
       // Ignora erro no logout remoto se rede falhar
     } finally {
-      await _storage.delete(key: _accessTokenKey);
-      await _storage.delete(key: _refreshTokenKey);
+      try {
+        await _storage.delete(key: _accessTokenKey);
+      } catch (_) {}
+      try {
+        await _storage.delete(key: _refreshTokenKey);
+      } catch (_) {}
       final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_accessTokenKey);
       await prefs.remove(_userKey);
       currentUserNotifier.value = null;
     }

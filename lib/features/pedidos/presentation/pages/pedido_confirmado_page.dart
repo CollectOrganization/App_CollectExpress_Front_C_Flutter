@@ -12,11 +12,13 @@ import 'acompanhar_pedido_page.dart';
 class PedidoConfirmadoPage extends StatelessWidget {
   final int selectedDay;
   final String selectedPeriod;
+  final String orderNumber;
 
   const PedidoConfirmadoPage({
     super.key,
     required this.selectedDay,
     required this.selectedPeriod,
+    this.orderNumber = '#COL-2024-1587',
   });
 
   @override
@@ -30,7 +32,7 @@ class PedidoConfirmadoPage extends StatelessWidget {
           slivers: [
             const SliverToBoxAdapter(child: _PageHeader()),
             SliverToBoxAdapter(
-              child: _ConfirmationBanner(orderNumber: '#COL-2024-1587'),
+              child: _ConfirmationBanner(orderNumber: orderNumber),
             ),
             SliverToBoxAdapter(
               child: Padding(
@@ -161,7 +163,7 @@ class PedidoConfirmadoPage extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => AcompanharPedidoPage(
-          orderNumber: '#COL-2024-1587',
+          orderNumber: orderNumber,
           deliveryDay: selectedDay,
           deliveryPeriod: selectedPeriod,
         ),

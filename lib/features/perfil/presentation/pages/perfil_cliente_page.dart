@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_bottom_navigation.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../auth/data/auth_service.dart';
 
 class PerfilClientePage extends StatefulWidget {
   const PerfilClientePage({super.key});
@@ -14,8 +15,8 @@ class PerfilClientePage extends StatefulWidget {
 }
 
 class _PerfilClientePageState extends State<PerfilClientePage> {
-  String name = 'João da Silva';
-  String email = 'joao.silva@email.com';
+  String name = 'Cliente';
+  String email = 'cliente@collectexpress.com';
   String phone = '(11) 99999-9999';
 
   String street = 'Avenida Paulista, 1000';
@@ -28,6 +29,23 @@ class _PerfilClientePageState extends State<PerfilClientePage> {
   bool orderNotifications = true;
   bool offerNotifications = true;
   bool whatsappNotifications = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  void _loadUser() {
+    final user = AuthService.currentUserNotifier.value;
+    if (user != null) {
+      setState(() {
+        name = user['nome_completo'] ?? name;
+        email = user['email'] ?? email;
+        phone = user['telefone'] ?? phone;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -471,8 +489,11 @@ class _PerfilClientePageState extends State<PerfilClientePage> {
     );
 
     if (confirmed == true && mounted) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+      await AuthService().logout();
+      if (mounted) {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+      }
     }
   }
 

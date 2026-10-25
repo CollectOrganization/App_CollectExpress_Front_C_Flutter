@@ -48,6 +48,8 @@ import 'features/institucional/presentation/pages/saiba_mais_page.dart';
 
 import 'features/admin_auth/presentation/pages/admin_login_page.dart';
 import 'features/admin_auth/presentation/pages/admin_register_page.dart';
+import 'features/pedidos/presentation/pages/meus_pedidos_page.dart';
+import 'features/pedidos/data/order_service.dart';
 
 import 'core/widgets/app_bottom_navigation.dart';
 
@@ -59,6 +61,7 @@ void main() async {
     debugPrint("Aviso ao carregar .env: $e");
   }
   await AuthService.init();
+  await OrderService.init();
   runApp(const CollectApp());
 }
 
@@ -75,7 +78,7 @@ class CollectApp extends StatelessWidget {
         AppRoutes.home: (_) => const HomePage(),
         AppRoutes.services: (_) => const CacambasPage(),
         AppRoutes.models: (_) => const DetalhesMaterialPage(),
-        AppRoutes.customerOrders: (_) => const ResumoPedidoPage(),
+        AppRoutes.customerOrders: (_) => const MeusPedidosPage(),
         AppRoutes.customerProfile: (_) => const PerfilClientePage(),
 
         // Autenticação
@@ -109,7 +112,8 @@ class CollectApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/cadastro': (_) => const CadastroPage(),
         '/cacambas': (_) => const CacambasPage(),
-        '/pedidos': (_) => const ResumoPedidoPage(),
+        '/pedidos': (_) => const MeusPedidosPage(),
+        '/checkout': (_) => const ResumoPedidoPage(),
         '/admin': (_) => const PainelAdminPage(),
         '/admin/pedidos': (_) => const GestaoPedidosPage(),
       },

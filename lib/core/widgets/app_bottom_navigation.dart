@@ -104,45 +104,87 @@ class CustomerBottomNavigation extends StatelessWidget {
 
   const CustomerBottomNavigation({super.key, required this.currentIndex});
 
-  static const routes = [
-    AppRoutes.home,
-    AppRoutes.services,
-    AppRoutes.customerOrders,
-    AppRoutes.customerProfile,
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      onTap: (index) {
-        _navigateToTab(context, index, currentIndex, routes);
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: AuthService.currentUserNotifier,
+      builder: (context, user, _) {
+        final isAdmin = user?['tipo_perfil'] == 'ADMIN';
+
+        return BottomNavigationBar(
+          currentIndex: currentIndex,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppColors.green,
+          unselectedItemColor: Colors.black54,
+          onTap: (index) {
+            if (index == currentIndex) return;
+            switch (index) {
+              case 0:
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  AppRoutes.home,
+                  (route) => false,
+                );
+                break;
+              case 1:
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  AppRoutes.services,
+                  (route) => false,
+                );
+                break;
+              case 2:
+                if (isAdmin) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.supplierOrders,
+                    (route) => false,
+                  );
+                } else {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.customerOrders,
+                    (route) => false,
+                  );
+                }
+                break;
+              case 3:
+                if (isAdmin) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.supplierHome,
+                    (route) => false,
+                  );
+                } else if (user != null) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    AppRoutes.customerProfile,
+                    (route) => false,
+                  );
+                } else {
+                  Navigator.of(context).pushNamed(AppRoutes.login);
+                }
+                break;
+            }
+          },
+          items: [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Início',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.delete_outline),
+              activeIcon: Icon(Icons.delete),
+              label: 'Caçambas',
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.list_alt_outlined),
+              activeIcon: const Icon(Icons.list_alt),
+              label: isAdmin ? 'Gestão' : 'Pedidos',
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.person_outline),
+              activeIcon: const Icon(Icons.person),
+              label: isAdmin ? 'Admin' : 'Perfil',
+            ),
+          ],
+        );
       },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          activeIcon: Icon(Icons.delete),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          activeIcon: Icon(Icons.list_alt),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Perfil',
-        ),
-      ],
     );
   }
 }

@@ -5,6 +5,7 @@ import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
 
 import 'pedido_confirmado_page.dart';
+import '../../data/order_service.dart';
 
 //botoes de navegação do rodapé
 import '../../../../core/widgets/app_bottom_navigation.dart';
@@ -263,10 +264,30 @@ class _AgendarEntregaPageState extends State<AgendarEntregaPage> {
     );
   }
 
-  void _confirmSchedule() {
+  void _confirmSchedule() async {
+    final order = {
+      'title': 'Caçamba 5m³ - Padrão Obra',
+      'wasteType': 'Entulho e Materiais Mistos',
+      'periodDays': 3,
+      'deliveryDay': selectedDay,
+      'deliveryPeriod': selectedPeriod,
+      'deliveryDate': 'Outubro 2024',
+      'address': 'Avenida Paulista, 1000 - Bela Vista, São Paulo - SP',
+      'subtotal': 350.0,
+      'discount': 35.0,
+      'total': 315.0,
+      'status': 'Aguardando Entrega',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    final savedOrder = await OrderService.addOrder(order);
+
+    if (!mounted) return;
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PedidoConfirmadoPage(
+          orderNumber: savedOrder['orderNumber'] as String,
           selectedDay: selectedDay,
           selectedPeriod: selectedPeriod,
         ),

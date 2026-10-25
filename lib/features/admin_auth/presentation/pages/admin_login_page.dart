@@ -4,6 +4,7 @@ import '../../../../core/navigation/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../data/admin_auth_service.dart';
+import '../../../auth/data/auth_service.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -215,25 +216,34 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     setState(() => _loading = true);
 
     try {
-      final session = await _service.login(
+      final response = await AuthService().login(
         email: _emailController.text,
         password: _passwordController.text,
       );
 
       if (!mounted) return;
 
-      if (session.role != 'admin' &&
-          session.role != 'super_admin' &&
-          session.role != 'platform_admin') {
-        await _service.logout();
+      final usuario = response['usuario'] as Map<String, dynamic>?;
+      final tipoPerfil = usuario?['tipo_perfil']?.toString().toUpperCase();
+
+      if (tipoPerfil != 'ADMIN') {
+        await AuthService().logout();
         throw const AdminAuthException(
           'Este usuário não possui permissão administrativa.',
         );
       }
 
+      final nome = usuario?['nome_completo'] ?? 'Administrador';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Bem-vindo(a) ao painel administrativo, $nome!'),
+          backgroundColor: AppColors.green,
+        ),
+      );
+
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.adminHome,
+        AppRoutes.supplierHome,
         (_) => false,
       );
     } on AdminAuthException catch (error) {
@@ -241,6 +251,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
