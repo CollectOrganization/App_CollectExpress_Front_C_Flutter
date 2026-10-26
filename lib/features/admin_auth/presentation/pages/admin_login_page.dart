@@ -231,6 +231,15 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
 
       if (!mounted) return;
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bem-vindo(a) ao painel administrativo, ${usuario.nomeCompleto}!',
+          ),
+          backgroundColor: AppColors.green,
+        ),
+      );
+
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.adminHome,
@@ -241,6 +250,13 @@ class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {

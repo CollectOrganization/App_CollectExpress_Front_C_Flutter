@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/data/sessao_provider.dart';
+import '../models/enums.dart';
+import '../models/usuario.dart';
 import '../navigation/app_routes.dart';
 import '../theme/app_colors.dart';
 import 'app_logo.dart';
 
-class AppMenuDrawer extends StatelessWidget {
+class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
 
   void _closeDrawer(BuildContext context) {
@@ -26,10 +30,39 @@ class AppMenuDrawer extends StatelessWidget {
     navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
   }
 
+  /// Painel ou perfil de cada tipo de conta.
+  static String _areaDoPerfil(Usuario usuario) {
+    return switch (usuario.tipoPerfil) {
+      TipoPerfil.cacambeiro => AppRoutes.supplierHome,
+      TipoPerfil.admin => AppRoutes.adminHome,
+      _ => AppRoutes.customerProfile,
+    };
+  }
+
+  Future<void> _sair(BuildContext context, WidgetRef ref) async {
+    // O context do drawer deixa de existir quando ele fecha.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final sessao = ref.read(sessaoProvider.notifier);
+
+    navigator.pop();
+    await sessao.sair();
+
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Você saiu da sua conta.'),
+        backgroundColor: Colors.black87,
+      ),
+    );
+    navigator.pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final currentRoute = ModalRoute.of(context)?.settings.name;
+    final usuario = ref.watch(sessaoProvider).value;
+    final isLoggedIn = usuario != null;
 
     return Drawer(
       width: screenWidth * 0.85,
@@ -62,13 +95,25 @@ class AppMenuDrawer extends StatelessWidget {
                 ],
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: _AccountCard(
-                onTap: () => _navigate(context, AppRoutes.login),
+                usuario: usuario,
+                onTap: () {
+                  if (usuario != null) {
+                    _navigate(context, _areaDoPerfil(usuario));
+                  } else {
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
+                    navigator.pushNamed(AppRoutes.login);
+                  }
+                },
               ),
             ),
+
             const SizedBox(height: 20),
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -92,17 +137,56 @@ class AppMenuDrawer extends StatelessWidget {
                       selected: currentRoute == AppRoutes.models,
                       onTap: () => _navigate(context, AppRoutes.models),
                     ),
-                    AppDrawerItem(
-                      icon: Icons.login_outlined,
-                      title: 'LOGIN',
-                      selected: currentRoute == AppRoutes.login,
-                      onTap: () => _navigate(context, AppRoutes.login),
-                    ),
+                    if (usuario?.isConsumidor ?? false)
+                      AppDrawerItem(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'MEUS PEDIDOS',
+                        selected: currentRoute == AppRoutes.customerOrders,
+                        onTap: () =>
+                            _navigate(context, AppRoutes.customerOrders),
+                      ),
+                    if (usuario?.isCacambeiro ?? false) ...[
+                      AppDrawerItem(
+                        icon: Icons.storefront_outlined,
+                        title: 'MEU PAINEL',
+                        selected: currentRoute == AppRoutes.supplierHome,
+                        onTap: () => _navigate(context, AppRoutes.supplierHome),
+                      ),
+                      AppDrawerItem(
+                        icon: Icons.assignment_outlined,
+                        title: 'GESTÃO PEDIDOS',
+                        selected: currentRoute == AppRoutes.supplierOrders,
+                        onTap: () =>
+                            _navigate(context, AppRoutes.supplierOrders),
+                      ),
+                    ],
+                    if (usuario?.isAdmin ?? false)
+                      AppDrawerItem(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: 'PAINEL ADMIN',
+                        selected: currentRoute == AppRoutes.adminHome,
+                        onTap: () => _navigate(context, AppRoutes.adminHome),
+                      ),
+                    if (!isLoggedIn)
+                      AppDrawerItem(
+                        icon: Icons.login_outlined,
+                        title: 'LOGIN',
+                        selected: currentRoute == AppRoutes.login,
+                        onTap: () => _navigate(context, AppRoutes.login),
+                      ),
+                    if (isLoggedIn)
+                      AppDrawerItem(
+                        icon: Icons.logout_rounded,
+                        title: 'SAIR',
+                        onTap: () => _sair(context, ref),
+                      ),
                   ],
                 ),
               ),
             ),
+
             AppDrawerFooter(
+              isLoggedIn: isLoggedIn,
               onRegister: () => _navigate(context, AppRoutes.register),
               onAbout: () => _navigate(context, AppRoutes.about),
             ),
@@ -114,12 +198,26 @@ class AppMenuDrawer extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
+  final Usuario? usuario;
   final VoidCallback onTap;
 
-  const _AccountCard({required this.onTap});
+  const _AccountCard({required this.usuario, required this.onTap});
+
+  String _formatProfile(TipoPerfil? tipoPerfil) {
+    return switch (tipoPerfil) {
+      TipoPerfil.admin => 'Administrador',
+      TipoPerfil.cacambeiro => 'Fornecedor de Caçambas',
+      TipoPerfil.consumidor => 'Cliente',
+      null => 'Usuário Conectado',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isLoggedIn = usuario != null;
+    final userName = usuario?.nomeCompleto ?? 'Usuário';
+    final profileLabel = _formatProfile(usuario?.tipoPerfil);
+
     return Material(
       color: const Color(0xFFD7D7D7),
       borderRadius: BorderRadius.circular(12),
@@ -136,32 +234,36 @@ class _AccountCard extends StatelessWidget {
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFA9A9A9),
+                  color: isLoggedIn ? AppColors.green : const Color(0xFFA9A9A9),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Icon(
-                  Icons.person_outline,
-                  size: 44,
-                  color: Colors.black87,
+                child: Icon(
+                  isLoggedIn ? Icons.verified_user_rounded : Icons.person_outline,
+                  size: 38,
+                  color: isLoggedIn ? Colors.white : Colors.black87,
                 ),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Olá, bem-vindo!',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w500,
+                      isLoggedIn ? 'Olá, $userName' : 'Olá, bem-vindo!',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      'Acesse sua conta',
+                      isLoggedIn ? profileLabel : 'Acesse sua conta',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
+                        color: isLoggedIn ? AppColors.green : Colors.black87,
                       ),
                     ),
                   ],
@@ -217,7 +319,7 @@ class AppDrawerItem extends StatelessWidget {
                     title,
                     style: TextStyle(
                       color: color,
-                      fontSize: 21,
+                      fontSize: 19,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -233,11 +335,13 @@ class AppDrawerItem extends StatelessWidget {
 }
 
 class AppDrawerFooter extends StatelessWidget {
+  final bool isLoggedIn;
   final VoidCallback onRegister;
   final VoidCallback onAbout;
 
   const AppDrawerFooter({
     super.key,
+    this.isLoggedIn = false,
     required this.onRegister,
     required this.onAbout,
   });
@@ -250,31 +354,33 @@ class AppDrawerFooter extends StatelessWidget {
         children: [
           const Divider(color: Colors.black38),
           const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: onRegister,
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: AppColors.yellow,
-                foregroundColor: Colors.black,
-                overlayColor: Colors.black.withValues(alpha: 0.08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
+          if (!isLoggedIn) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                onPressed: onRegister,
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: AppColors.yellow,
+                  foregroundColor: Colors.black,
+                  overlayColor: Colors.black.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text(
+                  'CADASTRE-SE',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                 ),
               ),
-              icon: const Icon(Icons.person_add_alt_1_outlined),
-              label: const Text(
-                'CADASTRE-SE',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
             ),
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
+          ],
           SizedBox(
             width: double.infinity,
-            height: 54,
+            height: 52,
             child: OutlinedButton(
               onPressed: onAbout,
               style: OutlinedButton.styleFrom(
@@ -291,7 +397,7 @@ class AppDrawerFooter extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(11),
@@ -325,13 +431,13 @@ class AppDrawerFooter extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           const Text(
             '☎  Suporte WhatsApp: (11) 99999-9999',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.orange, fontSize: 12),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 6),
           const Text(
             'Collect Express © 2026. Todos os direitos reservados.',
             textAlign: TextAlign.center,

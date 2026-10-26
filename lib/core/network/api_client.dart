@@ -16,11 +16,11 @@ import 'token_storage.dart';
 class ApiClient {
   ApiClient({
     required TokenStorage storage,
-    String baseUrl = ApiConfig.baseUrl,
+    String? baseUrl,
     HttpClientAdapter? adapter,
   }) {
     final options = BaseOptions(
-      baseUrl: baseUrl,
+      baseUrl: baseUrl ?? ApiConfig.baseUrl,
       connectTimeout: ApiConfig.timeout,
       receiveTimeout: ApiConfig.timeout,
       contentType: Headers.jsonContentType,

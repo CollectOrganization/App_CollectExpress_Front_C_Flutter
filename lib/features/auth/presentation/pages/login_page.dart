@@ -292,6 +292,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
 
       if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Bem-vindo(a), ${usuario.nomeCompleto}!'),
+          backgroundColor: AppColors.green,
+        ),
+      );
       _irParaAreaDoPerfil(usuario);
     } on ApiException catch (error) {
       if (mounted) showApiError(context, error);
