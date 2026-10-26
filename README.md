@@ -12,6 +12,7 @@ Projeto acadêmico do Curso Superior de Tecnologia em Desenvolvimento de Softwar
 | Estado e injeção de dependências | flutter_riverpod |
 | Cliente HTTP da API | dio |
 | Armazenamento dos tokens | flutter_secure_storage |
+| URL da API pelo arquivo `.env` | flutter_dotenv |
 | Consulta de CEP (ViaCEP) | http |
 | Tipografia | google_fonts |
 
@@ -22,19 +23,22 @@ Pré-requisitos: Flutter SDK (stable) e a API rodando, local ou publicada.
 ```bash
 flutter pub get
 
-# A URL da API é definida na execução (padrão: http://localhost:3001/api)
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3001/api
+# Sem --dart-define, a URL da API vem do API_URL do arquivo .env
+# (versionado com http://localhost:3001/api)
+flutter run -d chrome
 
 # Android (emulador): o localhost da máquina é 10.0.2.2
-flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:3001/api
+flutter run -d emulator-5554 --dart-define=API_URL=http://10.0.2.2:3001/api
 ```
 
 Para gerar as versões de distribuição:
 
 ```bash
-flutter build web --dart-define=API_BASE_URL=https://sua-api/api
-flutter build apk --dart-define=API_BASE_URL=https://sua-api/api
+flutter build web --dart-define=API_URL=https://sua-api/api
+flutter build apk --dart-define=API_URL=https://sua-api/api
 ```
+
+O nome antigo `API_BASE_URL` também é aceito no `--dart-define`.
 
 ## Estrutura
 
