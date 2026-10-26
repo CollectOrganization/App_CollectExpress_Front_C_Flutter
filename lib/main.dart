@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_menu_drawer.dart';
-
 import 'core/navigation/app_routes.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/login_page.dart';
@@ -43,10 +43,19 @@ import 'features/institucional/presentation/pages/saiba_mais_page.dart';
 
 import 'features/admin_auth/presentation/pages/admin_login_page.dart';
 import 'features/admin_auth/presentation/pages/admin_register_page.dart';
+import 'features/pedidos/presentation/pages/meus_pedidos_page.dart';
 
 import 'core/widgets/app_bottom_navigation.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Se o .env não carregar, a URL da API vem do --dart-define ou do padrão.
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('Aviso ao carregar .env: $e');
+  }
+
   runApp(const ProviderScope(retry: _semRetentativa, child: CollectApp()));
 }
 
@@ -60,19 +69,6 @@ class CollectApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /*return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
-        scaffoldBackgroundColor: Colors.white,
-        textTheme: GoogleFonts.poppinsTextTheme(),
-      ),
-      home: const LoginPage(),
-        routes: {
-          '/login': (_) => const LoginPage(),
-          '/cadastro': (_) => const CadastroPage(),
-        },
-    );*/
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       initialRoute: AppRoutes.home,
@@ -81,7 +77,7 @@ class CollectApp extends StatelessWidget {
         AppRoutes.home: (_) => const HomePage(),
         AppRoutes.services: (_) => const CacambasPage(),
         AppRoutes.models: (_) => const DetalhesMaterialPage(),
-        AppRoutes.customerOrders: (_) => const ResumoPedidoPage(),
+        AppRoutes.customerOrders: (_) => const MeusPedidosPage(),
         AppRoutes.customerProfile: (_) => const PerfilClientePage(),
 
         // Autenticação
@@ -108,9 +104,16 @@ class CollectApp extends StatelessWidget {
         AppRoutes.recyclingMaterials: (_) => const DetalhesMaterialPage(),
         AppRoutes.recyclingPartners: (_) => const ParceirosReciclagemPage(),
         AppRoutes.recyclingCollections: (_) => const ColetasAgendadasPage(),
-
-        // Temporário, até criarmos o perfil de reciclagem.
         AppRoutes.recyclingProfile: (_) => const LoginPage(),
+
+        // Rotas legadas para compatibilidade
+        // ('/login' e '/cadastro' já são AppRoutes.login e AppRoutes.register)
+        '/home': (_) => const HomePage(),
+        '/cacambas': (_) => const CacambasPage(),
+        '/pedidos': (_) => const MeusPedidosPage(),
+        '/checkout': (_) => const ResumoPedidoPage(),
+        '/admin': (_) => const PainelAdminPage(),
+        '/admin/pedidos': (_) => const GestaoPedidosPage(),
       },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
@@ -627,47 +630,3 @@ class SectionTitle extends StatelessWidget {
     );
   }
 }
-/*
-REMOVENDO POIS O TRECHO ABAIXO FOI SUBSTITUIDO POR:
-{
-bottomNavigationBar: const SupplierBottomNavigation(
-  currentIndex: 0,
-),
-}
-
-class AppBottomNavigation extends StatelessWidget {
-  const AppBottomNavigation({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.green,
-      unselectedItemColor: Colors.black54,
-      selectedFontSize: 11,
-      unselectedFontSize: 11,
-      onTap: (_) {},
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Início',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.delete_outline),
-          label: 'Caçambas',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          label: 'Pedidos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Perfil',
-        ),
-      ],
-    );
-  }
-}
-*/

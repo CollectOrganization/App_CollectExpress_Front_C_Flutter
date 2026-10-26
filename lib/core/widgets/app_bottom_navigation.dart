@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/data/sessao_provider.dart';
+import '../models/enums.dart';
 import '../navigation/app_routes.dart';
 import '../theme/app_colors.dart';
 
@@ -15,48 +18,78 @@ void _navigateToTab(
       .pushNamedAndRemoveUntil(routes[selectedIndex], (route) => false);
 }
 
-class CustomerBottomNavigation extends StatelessWidget {
+/// Barra das telas públicas e do cliente. As duas últimas abas levam cada
+/// perfil para a sua área: pedidos e perfil do cliente, gestão e painel do
+/// fornecedor ou do admin. Sem login, "Perfil" abre o login.
+class CustomerBottomNavigation extends ConsumerWidget {
   final int currentIndex;
 
   const CustomerBottomNavigation({super.key, required this.currentIndex});
 
-  static const routes = [
-    AppRoutes.home,
-    AppRoutes.services,
-    AppRoutes.customerOrders,
-    AppRoutes.customerProfile,
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final perfil = ref.watch(sessaoProvider).value?.tipoPerfil;
+
+    final (labelGestao, rotaGestao, labelPainel, rotaPainel) = switch (perfil) {
+      TipoPerfil.cacambeiro => (
+        'Gestão',
+        AppRoutes.supplierOrders,
+        'Painel',
+        AppRoutes.supplierHome,
+      ),
+      TipoPerfil.admin => (
+        'Gestão',
+        AppRoutes.adminUsers,
+        'Admin',
+        AppRoutes.adminHome,
+      ),
+      TipoPerfil.consumidor => (
+        'Pedidos',
+        AppRoutes.customerOrders,
+        'Perfil',
+        AppRoutes.customerProfile,
+      ),
+      null => ('Pedidos', AppRoutes.customerOrders, 'Perfil', null),
+    };
+
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: AppColors.green,
       unselectedItemColor: Colors.black54,
       onTap: (index) {
-        _navigateToTab(context, index, currentIndex, routes);
+        if (index == 3 && rotaPainel == null) {
+          Navigator.of(context).pushNamed(AppRoutes.login);
+          return;
+        }
+
+        _navigateToTab(context, index, currentIndex, [
+          AppRoutes.home,
+          AppRoutes.services,
+          rotaGestao,
+          rotaPainel ?? AppRoutes.login,
+        ]);
       },
-      items: const [
-        BottomNavigationBarItem(
+      items: [
+        const BottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),
           activeIcon: Icon(Icons.home),
           label: 'Início',
         ),
-        BottomNavigationBarItem(
+        const BottomNavigationBarItem(
           icon: Icon(Icons.delete_outline),
           activeIcon: Icon(Icons.delete),
           label: 'Caçambas',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          activeIcon: Icon(Icons.list_alt),
-          label: 'Pedidos',
+          icon: const Icon(Icons.list_alt_outlined),
+          activeIcon: const Icon(Icons.list_alt),
+          label: labelGestao,
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Perfil',
+          icon: const Icon(Icons.person_outline),
+          activeIcon: const Icon(Icons.person),
+          label: labelPainel,
         ),
       ],
     );

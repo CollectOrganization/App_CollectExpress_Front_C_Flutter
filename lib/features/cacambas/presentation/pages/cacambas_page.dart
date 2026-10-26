@@ -76,6 +76,7 @@ class _CacambasPageState extends ConsumerState<CacambasPage> {
     return Scaffold(
       drawerScrimColor: const Color(0xD9000000),
       endDrawer: const AppMenuDrawer(),
+      bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 1),
       body: SafeArea(
         bottom: false,
         child: CustomScrollView(
@@ -229,7 +230,6 @@ class _CacambasPageState extends ConsumerState<CacambasPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 1),
     );
   }
 }
