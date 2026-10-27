@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/aluguel.dart';
+import '../../../../core/models/enums.dart';
 import '../../../../core/navigation/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
@@ -13,6 +14,7 @@ import '../pedidos_format.dart';
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
 import 'acompanhar_pedido_page.dart';
+import 'pagamento_pix_page.dart';
 
 class PedidoConfirmadoPage extends ConsumerWidget {
   /// Pedido devolvido pelo checkout.
@@ -107,6 +109,32 @@ class PedidoConfirmadoPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (dados.statusPagamento == StatusPagamento.pendente) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _pagar(context, ref),
+                          style: ElevatedButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: const Color(0xFF32BCAD),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                          ),
+                          icon: const Icon(Icons.pix),
+                          label: const Text(
+                            'Pagar com Pix',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     SizedBox(
                       width: double.infinity,
                       height: 54,
@@ -170,6 +198,16 @@ class PedidoConfirmadoPage extends ConsumerWidget {
       ),
       bottomNavigationBar: const CustomerBottomNavigation(currentIndex: 2),
     );
+  }
+
+  Future<void> _pagar(BuildContext context, WidgetRef ref) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<bool>(
+        builder: (_) => PagamentoPixPage(aluguelId: pedido.id),
+      ),
+    );
+
+    ref.invalidate(pedidoDetalheProvider(pedido.id));
   }
 
   void _trackOrder(BuildContext context) {

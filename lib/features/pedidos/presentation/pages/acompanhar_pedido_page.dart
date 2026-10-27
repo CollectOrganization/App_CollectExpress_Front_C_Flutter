@@ -15,6 +15,7 @@ import '../../../../core/widgets/cacamba_image.dart';
 import '../../../auth/data/sessao_provider.dart';
 import '../../data/pedidos_repository.dart';
 import '../pedidos_format.dart';
+import 'pagamento_pix_page.dart';
 
 /// Detalhe de um pedido: itens, endereço, contatos, avaliação e etapas.
 final pedidoDetalheProvider = FutureProvider.autoDispose
@@ -126,6 +127,10 @@ class _AcompanharPedidoPageState extends ConsumerState<AcompanharPedidoPage> {
               : () => _copiar(codigo, 'Código do pedido copiado.'),
           onRefresh: _atualizar,
         ),
+        if (pedido.statusPagamento == StatusPagamento.pendente) ...[
+          const SizedBox(height: 20),
+          _PagamentoPendenteCard(valor: pedido.precoFinal, onPagar: _pagar),
+        ],
         const SizedBox(height: 20),
         _OrderProgressCard(etapas: _etapasDo(pedido)),
         const SizedBox(height: 20),
@@ -147,6 +152,17 @@ class _AcompanharPedidoPageState extends ConsumerState<AcompanharPedidoPage> {
         ],
       ],
     );
+  }
+
+  Future<void> _pagar() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<bool>(
+        builder: (_) => PagamentoPixPage(aluguelId: widget.aluguelId),
+      ),
+    );
+    if (!mounted) return;
+
+    ref.invalidate(pedidoDetalheProvider(widget.aluguelId));
   }
 
   /// As etapas vêm da API; sem elas, monta a partir do status atual.
@@ -293,6 +309,59 @@ class _OrderHeaderCard extends StatelessWidget {
                     ),
                   )
                 : const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PagamentoPendenteCard extends StatelessWidget {
+  final double valor;
+  final VoidCallback onPagar;
+
+  const _PagamentoPendenteCard({required this.valor, required this.onPagar});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Pagamento pendente',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Pague ${formatMoney(valor)} por Pix. A confirmação aparece '
+            'aqui automaticamente.',
+            style: const TextStyle(color: Colors.black54, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: onPagar,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: const Color(0xFF32BCAD),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+              icon: const Icon(Icons.pix),
+              label: const Text(
+                'Pagar com Pix',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           ),
         ],
       ),

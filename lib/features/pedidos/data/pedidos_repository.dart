@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/aluguel.dart';
 import '../../../core/models/avaliacao.dart';
 import '../../../core/models/json_parsing.dart';
+import '../../../core/models/pagamento_pix.dart';
 import '../../../core/models/pagina.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_providers.dart';
@@ -46,6 +47,28 @@ class PedidosRepository {
   Future<Aluguel> detalhe(String id) async {
     return Aluguel.fromJson(
       parseMap(await _api.get('/alugueis/$id')) ?? const {},
+    );
+  }
+
+  /// Gera o PIX do pedido, ou devolve o que ainda está pendente.
+  Future<PagamentoPix> gerarPix(String aluguelId) async {
+    return PagamentoPix.fromJson(
+      parseMap(await _api.post('/alugueis/$aluguelId/pix')) ?? const {},
+    );
+  }
+
+  /// Último PIX do pedido. A API confere o pagamento na AbacatePay e,
+  /// se ele foi feito, marca o pedido como pago.
+  Future<PagamentoPix> consultarPix(String aluguelId) async {
+    return PagamentoPix.fromJson(
+      parseMap(await _api.get('/alugueis/$aluguelId/pix')) ?? const {},
+    );
+  }
+
+  /// Simula o pagamento. Só funciona com PIX do modo de teste.
+  Future<PagamentoPix> simularPagamentoPix(String aluguelId) async {
+    return PagamentoPix.fromJson(
+      parseMap(await _api.post('/alugueis/$aluguelId/pix/simular')) ?? const {},
     );
   }
 
