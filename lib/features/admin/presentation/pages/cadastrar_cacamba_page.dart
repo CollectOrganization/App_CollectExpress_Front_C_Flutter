@@ -1,255 +1,264 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/cacamba.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
-import '../../domain/models/admin_cacamba.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../cacambas/data/catalogo_repository.dart';
+import '../../data/fornecedor_repository.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class CadastrarCacambaPage extends StatefulWidget {
+/// A API só aceita categorias cadastradas pelo admin e não tem rota pública
+/// para listá-las: as sugestões vêm do catálogo e das caçambas do fornecedor.
+final _categoriasConhecidasProvider = FutureProvider.autoDispose<List<String>>((
+  ref,
+) async {
+  Future<List<Cacamba>> semFalhar(Future<List<Cacamba>> busca) async {
+    try {
+      return await busca;
+    } on ApiException {
+      return const [];
+    }
+  }
+
+  final listas = await Future.wait([
+    semFalhar(
+      ref
+          .watch(catalogoRepositoryProvider)
+          .listarCacambas()
+          .then((pagina) => pagina.itens),
+    ),
+    semFalhar(ref.watch(fornecedorRepositoryProvider).minhasCacambas()),
+  ]);
+
+  return {
+    for (final lista in listas)
+      for (final cacamba in lista)
+        if (cacamba.tipoResiduo.trim().isNotEmpty) cacamba.tipoResiduo.trim(),
+  }.toList()..sort();
+});
+
+/// Fecha com `true` quando a caçamba foi cadastrada.
+class CadastrarCacambaPage extends ConsumerStatefulWidget {
   const CadastrarCacambaPage({super.key});
 
   @override
-  State<CadastrarCacambaPage> createState() => _CadastrarCacambaPageState();
+  ConsumerState<CadastrarCacambaPage> createState() =>
+      _CadastrarCacambaPageState();
 }
 
-class _CadastrarCacambaPageState extends State<CadastrarCacambaPage> {
+class _CadastrarCacambaPageState extends ConsumerState<CadastrarCacambaPage> {
+  static const _volumes = [3.0, 5.0, 7.0];
+
   final _formKey = GlobalKey<FormState>();
-  final _priceController = TextEditingController(text: '350,00');
+  final _wasteController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _photoController = TextEditingController();
 
-  String wasteType = 'Entulho (Alvenaria, terra, concreto)';
-  String selectedVolume = '5m³';
-  String deliveryDeadline = 'Em até 24 horas';
+  double _volume = 5;
+  bool _isLoading = false;
 
-  final Set<String> selectedRegions = {'Zona Sul', 'Zona Oeste'};
-
-  final regions = const [
-    'Zona Sul',
-    'Zona Norte',
-    'Zona Leste',
-    'Zona Oeste',
-    'Centro',
-  ];
+  /// Erros de validação devolvidos pela API, por campo.
+  Map<String, String> _errosApi = const {};
 
   @override
   void dispose() {
+    _wasteController.dispose();
     _priceController.dispose();
+    _photoController.dispose();
     super.dispose();
   }
 
-  //------------------------------------------------------------------
-  String _shortWasteName(String value) {
-    if (value.startsWith('Entulho')) {
-      return 'Entulho';
-    }
-
-    if (value.startsWith('Podas')) {
-      return 'Poda';
-    }
-
-    return 'Reciclável';
-  }
-
-  String _imageForVolume(String volume) {
-    switch (volume) {
-      case '3m³':
-        return 'assets/images/cacamba_3m.jpg';
-      case '7m³':
-        return 'assets/images/cacamba_7m.jpg';
-      default:
-        return 'assets/images/cacamba_5m.jpg';
-    }
-  }
-  //------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      endDrawer: const AppMenuDrawer(),
-      drawerScrimColor: const Color(0xD9000000),
-      body: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(child: _AdminHeader()),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 30, 18, 80),
-              sliver: SliverToBoxAdapter(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Cadastrar Nova Caçamba',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.7,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Insira as especificações para listar no app',
-                        style: TextStyle(color: Colors.black54, fontSize: 13),
-                      ),
-                      const SizedBox(height: 30),
+    final sugestoes = ref.watch(_categoriasConhecidasProvider).value ?? [];
 
-                      const _FieldLabel('Tipo de Resíduo'),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: wasteType,
-                        decoration: _inputDecoration(),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Entulho (Alvenaria, terra, concreto)',
-                            child: Text('Entulho (Alvenaria, terra, concreto)'),
+    return PopScope(
+      canPop: !_isLoading,
+      child: Scaffold(
+        endDrawer: const AppMenuDrawer(),
+        drawerScrimColor: const Color(0xD9000000),
+        body: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              const SliverToBoxAdapter(child: _AdminHeader()),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 30, 18, 80),
+                sliver: SliverToBoxAdapter(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Cadastrar Nova Caçamba',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.7,
                           ),
-                          DropdownMenuItem(
-                            value: 'Podas e jardinagem',
-                            child: Text('Podas e jardinagem'),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Insira as especificações para listar no app',
+                          style: TextStyle(color: Colors.black54, fontSize: 13),
+                        ),
+                        const SizedBox(height: 30),
+
+                        const _FieldLabel('Tipo de Resíduo'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _wasteController,
+                          textCapitalization: TextCapitalization.sentences,
+                          onChanged: (_) => setState(() {}),
+                          decoration: _inputDecoration(
+                            hintText: 'Categoria cadastrada pelo administrador',
                           ),
-                          DropdownMenuItem(
-                            value: 'Materiais recicláveis',
-                            child: Text('Materiais recicláveis'),
+                          validator: _comErroDaApi('tipo_residuo', (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe o tipo de resíduo';
+                            }
+                            return null;
+                          }),
+                        ),
+                        if (sugestoes.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: sugestoes.map(_wasteChip).toList(),
                           ),
                         ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => wasteType = value);
-                          }
-                        },
-                      ),
 
-                      const SizedBox(height: 20),
-                      const _FieldLabel('Capacidade / Volume'),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _volumeButton('3m³'),
-                          const SizedBox(width: 10),
-                          _volumeButton('5m³'),
-                          const SizedBox(width: 10),
-                          _volumeButton('7m³'),
-                        ],
-                      ),
-
-                      const SizedBox(height: 20),
-                      const _FieldLabel('Preço por Locação (5 dias)'),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _priceController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                        const SizedBox(height: 20),
+                        const _FieldLabel('Capacidade / Volume'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            for (final volume in _volumes) ...[
+                              if (volume != _volumes.first)
+                                const SizedBox(width: 10),
+                              _volumeButton(volume),
+                            ],
+                          ],
                         ),
-                        decoration: _inputDecoration(
-                          prefixIcon: const Padding(
-                            padding: EdgeInsets.only(left: 16, right: 8),
-                            child: Center(
-                              widthFactor: 1,
-                              child: Text(
-                                'R\$',
-                                style: TextStyle(
-                                  color: Color(0xFF76A24A),
-                                  fontWeight: FontWeight.w700,
+
+                        const SizedBox(height: 20),
+                        const _FieldLabel('Preço por Dia'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _priceController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: _inputDecoration(
+                            hintText: '0,00',
+                            prefixIcon: const Padding(
+                              padding: EdgeInsets.only(left: 16, right: 8),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Text(
+                                  'R\$',
+                                  style: TextStyle(
+                                    color: Color(0xFF76A24A),
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
+                          validator: _comErroDaApi('preco_diaria', (value) {
+                            final price = _parseDecimal(value ?? '');
+                            if (price == null || price <= 0) {
+                              return 'Informe um preço válido';
+                            }
+                            return null;
+                          }),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Informe o preço da locação';
-                          }
-                          return null;
-                        },
-                      ),
 
-                      const SizedBox(height: 20),
-                      const _FieldLabel('Regiões Atendidas'),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: regions.map(_regionChip).toList(),
-                      ),
-
-                      const SizedBox(height: 20),
-                      const _FieldLabel('Prazo de Entrega'),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: deliveryDeadline,
-                        decoration: _inputDecoration(),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Em até 24 horas',
-                            child: Text('Em até 24 horas'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Em até 48 horas',
-                            child: Text('Em até 48 horas'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Em até 72 horas',
-                            child: Text('Em até 72 horas'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => deliveryDeadline = value);
-                          }
-                        },
-                      ),
-
-                      const SizedBox(height: 20),
-                      const _FieldLabel('Fotos do Equipamento'),
-                      const SizedBox(height: 8),
-                      _PhotoUpload(onTap: _selectPhotos),
-
-                      const SizedBox(height: 26),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: _publish,
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: AppColors.green,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(11),
+                        const SizedBox(height: 20),
+                        const _FieldLabel('Foto da Caçamba (opcional)'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _photoController,
+                          keyboardType: TextInputType.url,
+                          decoration: _inputDecoration(
+                            hintText: 'https://... (link de uma imagem)',
+                            prefixIcon: const Icon(
+                              Icons.image_outlined,
+                              color: Color(0xFF76A24A),
                             ),
                           ),
-                          child: const Text(
-                            'Publicar Caçamba',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
+                          validator: _comErroDaApi('foto_url', _validateUrl),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Sem foto, o app mostra uma imagem padrão do tamanho '
+                          'escolhido.',
+                          style: TextStyle(color: Colors.black54, fontSize: 11),
+                        ),
+
+                        const SizedBox(height: 26),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _publish,
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: AppColors.green,
+                              disabledBackgroundColor: AppColors.green
+                                  .withValues(alpha: 0.55),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(11),
+                              ),
                             ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Publicar Caçamba',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 1),
       ),
-      bottomNavigationBar: const SupplierBottomNavigation(currentIndex: 1),
     );
   }
 
-  Widget _volumeButton(String volume) {
-    final selected = selectedVolume == volume;
+  Widget _volumeButton(double volume) {
+    final selected = _volume == volume;
 
     return Expanded(
       child: SizedBox(
         height: 48,
         child: ElevatedButton(
-          onPressed: () => setState(() => selectedVolume = volume),
+          onPressed: () => setState(() => _volume = volume),
           style: ElevatedButton.styleFrom(
             elevation: 0,
             backgroundColor: selected ? AppColors.green : AppColors.lightGray,
@@ -259,7 +268,7 @@ class _CadastrarCacambaPageState extends State<CadastrarCacambaPage> {
             ),
           ),
           child: Text(
-            volume,
+            formatVolume(volume),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
@@ -267,11 +276,12 @@ class _CadastrarCacambaPageState extends State<CadastrarCacambaPage> {
     );
   }
 
-  Widget _regionChip(String region) {
-    final selected = selectedRegions.contains(region);
+  Widget _wasteChip(String categoria) {
+    final selected =
+        _wasteController.text.trim().toLowerCase() == categoria.toLowerCase();
 
-    return FilterChip(
-      label: Text(region),
+    return ChoiceChip(
+      label: Text(categoria),
       selected: selected,
       showCheckmark: false,
       selectedColor: const Color(0xFFEAF6E8),
@@ -283,23 +293,20 @@ class _CadastrarCacambaPageState extends State<CadastrarCacambaPage> {
         color: selected ? AppColors.green : Colors.black54,
         fontSize: 12,
       ),
-      onSelected: (isSelected) {
-        setState(() {
-          if (isSelected) {
-            selectedRegions.add(region);
-          } else {
-            selectedRegions.remove(region);
-          }
-        });
+      onSelected: (_) {
+        setState(() => _wasteController.text = categoria);
       },
     );
   }
 
-  InputDecoration _inputDecoration({Widget? prefixIcon}) {
+  InputDecoration _inputDecoration({String? hintText, Widget? prefixIcon}) {
     return InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(color: Colors.black38),
       prefixIcon: prefixIcon,
       filled: true,
       fillColor: Colors.white,
+      errorMaxLines: 2,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
@@ -313,58 +320,77 @@ class _CadastrarCacambaPageState extends State<CadastrarCacambaPage> {
         borderRadius: BorderRadius.circular(11),
         borderSide: const BorderSide(color: Colors.red),
       ),
-    );
-  }
-
-  void _selectPhotos() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('O seletor de imagens será integrado posteriormente.'),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(11),
+        borderSide: const BorderSide(color: Colors.red),
       ),
     );
   }
 
-  void _publish() {
+  /// Mostra primeiro o erro que a API devolveu para [campo], se houver.
+  String? Function(String?) _comErroDaApi(
+    String campo,
+    String? Function(String?) validator,
+  ) {
+    return (value) => _errosApi[campo] ?? validator(value);
+  }
+
+  /// Aceita "1.234,56", "1234,56" e "1234.56".
+  double? _parseDecimal(String value) {
+    var text = value.trim();
+    if (text.contains(',')) {
+      text = text.replaceAll('.', '').replaceAll(',', '.');
+    }
+
+    return double.tryParse(text);
+  }
+
+  String? _validateUrl(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+
+    final uri = Uri.tryParse(text);
+    final valid =
+        uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+
+    return valid ? null : 'Informe um link que comece com http:// ou https://';
+  }
+
+  Future<void> _publish() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _errosApi = const {});
+
     if (!_formKey.currentState!.validate()) return;
 
-    if (selectedRegions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecione ao menos uma região atendida.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+    final tipoResiduo = _wasteController.text.trim();
+    final fotoUrl = _photoController.text.trim();
+
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(fornecedorRepositoryProvider)
+          .criarCacamba(
+            nome: 'Caçamba ${formatVolume(_volume)} - $tipoResiduo',
+            tipoResiduo: tipoResiduo,
+            tamanhoM3: _volume,
+            precoDiaria: _parseDecimal(_priceController.text)!,
+            fotoUrl: fotoUrl.isEmpty ? null : fotoUrl,
+          );
+      if (!mounted) return;
+
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        if (error is ApiException) _errosApi = error.fields;
+      });
+      _formKey.currentState!.validate();
+      showApiError(context, error);
     }
-
-    final normalizedPrice = _priceController.text
-        .trim()
-        .replaceAll('.', '')
-        .replaceAll(',', '.');
-
-    final price = double.tryParse(normalizedPrice);
-
-    if (price == null || price <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe um preço válido.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final cacamba = AdminCacamba(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Caçamba $selectedVolume - ${_shortWasteName(wasteType)}',
-      region: selectedRegions.first,
-      price: price,
-      period: '5 dias',
-      imagePath: _imageForVolume(selectedVolume),
-      status: AdminCacambaStatus.disponivel,
-    );
-
-    Navigator.of(context).pop(cacamba);
   }
 }
 
@@ -431,58 +457,6 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-    );
-  }
-}
-
-class _PhotoUpload extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _PhotoUpload({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(11),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
-        child: Container(
-          width: double.infinity,
-          height: 135,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: AppColors.border,
-              style: BorderStyle.solid,
-            ),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.camera_alt_outlined,
-                color: Color(0xFF76A24A),
-                size: 30,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Adicionar Fotos da Caçamba',
-                style: TextStyle(
-                  color: Color(0xFF76A24A),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Formatos aceitos: JPG, PNG • Máx: 5MB',
-                style: TextStyle(color: Colors.black54, fontSize: 10),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

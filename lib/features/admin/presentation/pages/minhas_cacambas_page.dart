@@ -41,19 +41,17 @@ class _MinhasCacambasPageState extends ConsumerState<MinhasCacambasPage> {
   }
 
   Future<void> _openRegistration() async {
-    final newCacamba = await Navigator.of(context).push<Object?>(
+    final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const CadastrarCacambaPage()),
     );
 
-    if (!mounted) return;
+    if (!mounted || created != true) return;
 
     ref.invalidate(minhasCacambasProvider);
-
-    if (newCacamba == null) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('O cadastro de caçambas ainda não está ligado à API.'),
+        content: Text('Caçamba cadastrada. Ela já aparece no catálogo.'),
+        backgroundColor: AppColors.green,
       ),
     );
   }

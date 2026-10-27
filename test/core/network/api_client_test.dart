@@ -35,6 +35,28 @@ void main() {
       expect(await client.get('/x'), {'id': '1'});
     });
 
+    test('mantém a paginação que vem fora do data (GET /usuarios)', () async {
+      final client = clientWith(
+        FakeApiAdapter(
+          (_) => const FakeResponse(200, {
+            'success': true,
+            'data': [
+              {'id': '1'},
+            ],
+            'total': 21,
+            'pagination': {'total': 21, 'page': 1, 'totalPages': 2},
+          }),
+        ),
+      );
+
+      expect(await client.get('/x'), {
+        'items': [
+          {'id': '1'},
+        ],
+        'pagination': {'total': 21, 'page': 1, 'totalPages': 2},
+      });
+    });
+
     test('devolve o corpo inteiro no formato antigo', () async {
       final client = clientWith(
         FakeApiAdapter(
