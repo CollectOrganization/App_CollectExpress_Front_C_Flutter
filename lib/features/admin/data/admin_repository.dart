@@ -35,6 +35,7 @@ class AdminRepository {
   Future<Pagina<Usuario>> listarUsuarios({
     int pagina = 1,
     TipoPerfil? tipoPerfil,
+    StatusUsuario? status,
     String? busca,
   }) async {
     final data = await _api.get(
@@ -42,11 +43,26 @@ class AdminRepository {
       query: {
         'page': pagina,
         if (tipoPerfil != null) 'tipo_perfil': tipoPerfil.apiValue,
+        if (status != null) 'status': status.apiValue,
         if (busca != null && busca.trim().length >= 3) 'search': busca.trim(),
       },
     );
 
     return Pagina.fromJson(data, Usuario.fromJson);
+  }
+
+  /// [status] ATIVO aprova um PENDENTE ou reativa um SUSPENSO; SUSPENSO
+  /// recusa um PENDENTE ou bloqueia um ATIVO. A API não deixa mudar o
+  /// status de administradores nem o da própria conta.
+  Future<Usuario> alterarStatusUsuario(String id, StatusUsuario status) async {
+    assert(status != StatusUsuario.pendente);
+
+    final data = await _api.patch(
+      '/usuarios/$id/status',
+      data: {'status': status.apiValue},
+    );
+
+    return Usuario.fromJson(parseMap(data) ?? const {});
   }
 
   Future<({Usuario usuario, List<Endereco> enderecos, List<Aluguel> pedidos})>
