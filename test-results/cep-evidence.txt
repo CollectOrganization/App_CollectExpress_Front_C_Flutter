@@ -1,0 +1,5 @@
+# Consulta de CEP pelo CepService (2026-10-26T10:57:55.572869)
+01311-200 | CEP válido (Av. Paulista, São Paulo) | OK em 1281 ms | Avenida Paulista, Bela Vista, São Paulo/SP
+09310-000 | CEP válido (Mauá) | OK em 445 ms | Avenida Barão de Mauá, Vila Bocaina, Mauá/SP
+00000-000 | CEP inexistente | OK em 431 ms | , , /
+1234 | CEP com menos de 8 dígitos | recusado em 0 ms | CEP deve possuir 8 dígitos.

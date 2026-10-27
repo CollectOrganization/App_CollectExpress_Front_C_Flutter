@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
-import '../../../../core/widgets/app_bottom_navigation.dart';
-import '../../../auth/data/auth_service.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../auth/data/sessao_provider.dart';
+import '../../domain/models/fornecedor_dashboard.dart';
+import '../fornecedor_providers.dart';
+import '../widgets/pedido_fornecedor.dart';
+import 'detalhes_pedido_page.dart';
 
-class PainelAdminPage extends StatelessWidget {
+import '../../../../core/widgets/app_bottom_navigation.dart';
+
+class PainelAdminPage extends ConsumerWidget {
   const PainelAdminPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       endDrawer: const AppMenuDrawer(),
       drawerScrimColor: const Color(0xD9000000),
@@ -22,14 +31,33 @@ class PainelAdminPage extends StatelessWidget {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 24, 18, 50),
               sliver: SliverList(
-                delegate: SliverChildListDelegate(const [
-                  _WelcomeSection(),
-                  SizedBox(height: 24),
-                  _MetricsGrid(),
-                  SizedBox(height: 24),
-                  _WeeklyOrdersCard(),
-                  SizedBox(height: 24),
-                  _LatestOrdersSection(),
+                delegate: SliverChildListDelegate([
+                  const _WelcomeSection(),
+                  const SizedBox(height: 24),
+                  AsyncValueView(
+                    value: ref.watch(fornecedorDashboardProvider),
+                    onRetry: () => ref.invalidate(fornecedorDashboardProvider),
+                    data: (dashboard) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _MetricsGrid(dashboard: dashboard),
+                        const SizedBox(height: 24),
+                        AsyncValueView(
+                          value: ref.watch(pedidosRecebidosProvider),
+                          onRetry: () =>
+                              ref.invalidate(pedidosRecebidosProvider),
+                          data: (pedidos) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _WeeklyOrdersCard(pedidos: pedidos),
+                              const SizedBox(height: 24),
+                              _LatestOrdersSection(pedidos: pedidos),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ]),
               ),
             ),
@@ -94,83 +122,103 @@ class _AdminHeader extends StatelessWidget {
   }
 }
 
-class _WelcomeSection extends StatelessWidget {
+class _WelcomeSection extends ConsumerWidget {
   const _WelcomeSection();
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<Map<String, dynamic>?>(
-      valueListenable: AuthService.currentUserNotifier,
-      builder: (context, user, _) {
-        final nome = user?['nome_completo'] ?? 'Administrador';
-        return Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Olá, $nome!',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.7,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Painel de Controle • CollectExpress Marketplace',
-                    style: TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
-                ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usuario = ref.watch(sessaoProvider).value;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                usuario == null ? 'Olá!' : 'Olá, ${usuario.nomeCompleto}!',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.7,
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            const CircleAvatar(
-              radius: 30,
-              backgroundColor: Color(0xFFEAF6E8),
-              child: Icon(Icons.admin_panel_settings, size: 36, color: AppColors.green),
-            ),
-          ],
-        );
-      },
+              const SizedBox(height: 4),
+              Text(
+                usuario?.email ?? 'Fornecedor de caçambas',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 14),
+        const CircleAvatar(
+          radius: 30,
+          backgroundColor: Color(0xFFE0E0E0),
+          child: Icon(Icons.person, size: 38, color: Colors.black54),
+        ),
+      ],
     );
   }
 }
 
 class _MetricsGrid extends StatelessWidget {
-  const _MetricsGrid();
+  final FornecedorDashboard dashboard;
+
+  const _MetricsGrid({required this.dashboard});
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final nota = dashboard.notaMedia;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: _MetricCard(label: 'Caçambas Ativas', value: '12'),
+              child: _MetricCard(
+                label: 'Pedidos Ativos',
+                value: '${dashboard.pedidosAtivos}',
+                highlighted: true,
+              ),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: _MetricCard(
-                label: 'Pedidos Hoje',
-                value: '5',
-                highlighted: true,
+                label: 'Total de Pedidos',
+                value: '${dashboard.totalPedidos}',
               ),
             ),
           ],
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              child: _MetricCard(label: 'Faturamento Mês', value: 'R\$ 8.450'),
+              child: _MetricCard(
+                label: 'Receita Líquida',
+                value: formatMoney(dashboard.receitaLiquida),
+              ),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
-              child: _MetricCard(label: 'Avaliação Loja', value: '4.8 ★'),
+              child: _MetricCard(
+                label: 'Avaliação (${dashboard.totalAvaliacoes})',
+                value: nota == null
+                    ? '-'
+                    : '${nota.toStringAsFixed(1).replaceAll('.', ',')} ★',
+              ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'A receita considera só pedidos finalizados e pagos, já descontada '
+          'a taxa da plataforma.',
+          style: TextStyle(color: Colors.black54, fontSize: 11),
         ),
       ],
     );
@@ -210,9 +258,13 @@ class _MetricCard extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -220,15 +272,34 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+/// Pedidos recebidos em cada um dos últimos 7 dias, por data do pedido.
 class _WeeklyOrdersCard extends StatelessWidget {
-  const _WeeklyOrdersCard();
+  final List<Aluguel> pedidos;
 
-  static const values = <double>[0.30, 0.55, 0.40, 0.80, 0.60, 1.00, 0.70];
+  const _WeeklyOrdersCard({required this.pedidos});
 
   static const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final hoje = DateTime(now.year, now.month, now.day);
+    final dias = [
+      for (var i = 6; i >= 0; i--) hoje.subtract(Duration(days: i)),
+    ];
+
+    final contagem = [
+      for (final dia in dias)
+        pedidos.where((pedido) {
+          final data = pedido.dataPedido?.toLocal();
+          return data != null &&
+              data.year == dia.year &&
+              data.month == dia.month &&
+              data.day == dia.day;
+        }).length,
+    ];
+    final maior = contagem.fold(0, (a, b) => a > b ? a : b);
+
     return Container(
       height: 270,
       padding: const EdgeInsets.all(22),
@@ -246,14 +317,16 @@ class _WeeklyOrdersCard extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           const Text(
-            'Acompanhamento semanal de locações',
+            'Pedidos recebidos nos últimos 7 dias',
             style: TextStyle(color: Colors.black54, fontSize: 12),
           ),
           const SizedBox(height: 20),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(days.length, (index) {
+              children: List.generate(dias.length, (index) {
+                final isToday = index == dias.length - 1;
+
                 return Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -262,11 +335,14 @@ class _WeeklyOrdersCard extends StatelessWidget {
                         child: Align(
                           alignment: Alignment.bottomCenter,
                           child: FractionallySizedBox(
-                            heightFactor: values[index],
+                            // Uma linha mínima marca os dias sem pedidos.
+                            heightFactor: maior == 0
+                                ? 0.03
+                                : (contagem[index] / maior).clamp(0.03, 1.0),
                             child: Container(
                               width: 24,
                               decoration: BoxDecoration(
-                                color: index == 5
+                                color: isToday
                                     ? AppColors.green
                                     : const Color(0xFF82AA52),
                                 borderRadius: BorderRadius.circular(6),
@@ -275,9 +351,16 @@ class _WeeklyOrdersCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
-                        days[index],
+                        '${contagem[index]}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        days[dias[index].weekday - 1],
                         style: const TextStyle(
                           color: Colors.black54,
                           fontSize: 10,
@@ -296,144 +379,124 @@ class _WeeklyOrdersCard extends StatelessWidget {
 }
 
 class _LatestOrdersSection extends StatelessWidget {
-  const _LatestOrdersSection();
+  final List<Aluguel> pedidos;
+
+  const _LatestOrdersSection({required this.pedidos});
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final recentes = [...pedidos]
+      ..sort((a, b) {
+        final dataA = a.dataPedido;
+        final dataB = b.dataPedido;
+        if (dataA == null) return dataB == null ? 0 : 1;
+        if (dataB == null) return -1;
+        return dataB.compareTo(dataA);
+      });
+
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Últimos Pedidos',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
         ),
-        Text(
-          'Novos agendamentos e entregas pendentes',
+        const Text(
+          'Pedidos recebidos mais recentes',
           style: TextStyle(color: Colors.black54, fontSize: 12),
         ),
-        SizedBox(height: 14),
-        _OrderCard(
-          number: 'COL-2024-1587',
-          customer: 'Maria Silva',
-          dumpster: '5m³ Entulho',
-          schedule: 'Hoje, 10:30',
-          status: 'Em andamento',
-          statusColor: Color(0xFF9A6D00),
-          statusBackground: Color(0xFFFFF9D9),
-        ),
-        SizedBox(height: 14),
-        _OrderCard(
-          number: 'COL-2024-1580',
-          customer: 'José Santos',
-          dumpster: '3m³ Recicláveis',
-          schedule: 'Ontem, 16:45',
-          status: 'Concluído',
-          statusColor: AppColors.green,
-          statusBackground: Color(0xFFE5F6E7),
-        ),
-        SizedBox(height: 14),
-        _OrderCard(
-          number: 'COL-2024-1575',
-          customer: 'Carlos Souza',
-          dumpster: '7m³ Poda',
-          schedule: '24 Out, 09:00',
-          status: 'Agendado',
-          statusColor: Colors.black54,
-          statusBackground: Color(0xFFF1F1F1),
-        ),
+        const SizedBox(height: 14),
+        if (recentes.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 30),
+            child: Center(
+              child: Text(
+                'Você ainda não recebeu pedidos.',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+          )
+        else
+          for (final pedido in recentes.take(3)) ...[
+            _OrderCard(pedido: pedido),
+            const SizedBox(height: 14),
+          ],
       ],
     );
   }
 }
 
 class _OrderCard extends StatelessWidget {
-  final String number;
-  final String customer;
-  final String dumpster;
-  final String schedule;
-  final String status;
-  final Color statusColor;
-  final Color statusBackground;
+  final Aluguel pedido;
 
-  const _OrderCard({
-    required this.number,
-    required this.customer,
-    required this.dumpster,
-    required this.schedule,
-    required this.status,
-    required this.statusColor,
-    required this.statusBackground,
-  });
+  const _OrderCard({required this.pedido});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: AppColors.lightGray,
+    return Material(
+      color: AppColors.lightGray,
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(
         borderRadius: BorderRadius.circular(17),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  number,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  'Cliente: $customer • $dumpster',
-                  style: const TextStyle(color: Colors.black54, fontSize: 11),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  'Agendado para: $schedule',
-                  style: const TextStyle(color: Colors.black54, fontSize: 10),
-                ),
-              ],
-            ),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DetalhesPedidoPage(aluguelId: pedido.id),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: statusBackground,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pedido.consumidorNome ?? 'Cliente',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Pedido em ${formatDate(pedido.dataPedido)} • '
+                      '${formatDias(pedido.diasAluguel)}',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Início da locação: ${formatDate(pedido.dataInicio)}',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'R\$ 350,00',
-                style: TextStyle(
-                  color: AppColors.green,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  StatusAluguelBadge(status: pedido.statusAluguel),
+                  const SizedBox(height: 10),
+                  Text(
+                    formatMoney(pedido.precoFinal),
+                    style: const TextStyle(
+                      color: AppColors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

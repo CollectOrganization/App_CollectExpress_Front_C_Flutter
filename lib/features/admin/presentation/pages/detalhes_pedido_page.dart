@@ -1,24 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
+import '../../../../core/models/avaliacao.dart';
+import '../../../../core/models/enums.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/navigation/app_routes.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../fornecedor_providers.dart';
+import '../widgets/pedido_fornecedor.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class DetalhesPedidoPage extends StatefulWidget {
-  const DetalhesPedidoPage({super.key});
+class DetalhesPedidoPage extends ConsumerStatefulWidget {
+  final String aluguelId;
+
+  const DetalhesPedidoPage({super.key, required this.aluguelId});
 
   @override
-  State<DetalhesPedidoPage> createState() => _DetalhesPedidoPageState();
+  ConsumerState<DetalhesPedidoPage> createState() => _DetalhesPedidoPageState();
 }
 
-class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
-  bool deliveryConfirmed = false;
+class _DetalhesPedidoPageState extends ConsumerState<DetalhesPedidoPage> {
+  bool _atualizando = false;
 
   @override
   Widget build(BuildContext context) {
+    final provider = detalhePedidoFornecedorProvider(widget.aluguelId);
+
     return Scaffold(
       endDrawer: const AppMenuDrawer(),
       drawerScrimColor: const Color(0xD9000000),
@@ -41,64 +55,10 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
                     style: TextStyle(color: Colors.black54, fontSize: 13),
                   ),
                   const SizedBox(height: 28),
-
-                  _StatusCard(deliveryConfirmed: deliveryConfirmed),
-
-                  const SizedBox(height: 28),
-                  const _SectionTitle('Informações do Cliente'),
-                  const SizedBox(height: 12),
-                  const _CustomerCard(),
-
-                  const SizedBox(height: 28),
-                  const _SectionTitle('Serviço & Pagamento'),
-                  const SizedBox(height: 12),
-                  const _PaymentCard(),
-
-                  const SizedBox(height: 26),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: deliveryConfirmed ? null : _confirmDelivery,
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: AppColors.green,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.green.withValues(
-                          alpha: 0.5,
-                        ),
-                        disabledForegroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        deliveryConfirmed
-                            ? 'Entrega Confirmada'
-                            : 'Confirmar Entrega da Caçamba',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: OutlinedButton(
-                      onPressed: _contactCustomer,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.green,
-                        side: const BorderSide(color: AppColors.green),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        'Contatar Cliente via WhatsApp',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
+                  AsyncValueView(
+                    value: ref.watch(provider),
+                    onRetry: () => ref.invalidate(provider),
+                    data: _buildPedido,
                   ),
                 ]),
               ),
@@ -110,24 +70,111 @@ class _DetalhesPedidoPageState extends State<DetalhesPedidoPage> {
     );
   }
 
-  void _confirmDelivery() {
-    setState(() {
-      deliveryConfirmed = true;
-    });
+  Widget _buildPedido(Aluguel pedido) {
+    final proximo = pedido.statusAluguel?.proximo;
+    final telefone = pedido.consumidor?.telefone;
+    final avaliacao = pedido.avaliacao;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Entrega confirmada com sucesso!'),
-        backgroundColor: AppColors.green,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _StatusCard(pedido: pedido),
+
+        const SizedBox(height: 28),
+        const _SectionTitle('Informações do Cliente'),
+        const SizedBox(height: 12),
+        _CustomerCard(pedido: pedido),
+
+        const SizedBox(height: 28),
+        const _SectionTitle('Serviço & Pagamento'),
+        const SizedBox(height: 12),
+        _PaymentCard(pedido: pedido),
+
+        if (avaliacao != null) ...[
+          const SizedBox(height: 28),
+          const _SectionTitle('Avaliação do Cliente'),
+          const SizedBox(height: 12),
+          _ReviewCard(avaliacao: avaliacao),
+        ],
+
+        const SizedBox(height: 26),
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: ElevatedButton(
+            onPressed: proximo == null || _atualizando
+                ? null
+                : () => _avancarStatus(proximo),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.green,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.green.withValues(alpha: 0.5),
+              disabledForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: _atualizando
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    proximo == null
+                        ? 'Pedido Finalizado'
+                        : textoAvancarStatus(proximo),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+          ),
+        ),
+
+        if (telefone != null) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: OutlinedButton(
+              onPressed: () => _copiarTelefone(telefone),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.green,
+                side: const BorderSide(color: AppColors.green),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Copiar Telefone do Cliente',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
-  void _contactCustomer() {
+  Future<void> _avancarStatus(StatusAluguel proximo) async {
+    if (!await confirmarAvancoStatus(context, proximo) || !mounted) return;
+
+    setState(() => _atualizando = true);
+    try {
+      await avancarStatusPedido(context, ref, widget.aluguelId, proximo);
+    } finally {
+      if (mounted) setState(() => _atualizando = false);
+    }
+  }
+
+  Future<void> _copiarTelefone(String telefone) async {
+    await Clipboard.setData(ClipboardData(text: telefone));
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('A integração com o WhatsApp será adicionada depois.'),
-      ),
+      SnackBar(content: Text('Telefone copiado: ${formatPhone(telefone)}')),
     );
   }
 }
@@ -183,12 +230,37 @@ class _DetailsHeader extends StatelessWidget {
 }
 
 class _StatusCard extends StatelessWidget {
-  final bool deliveryConfirmed;
+  final Aluguel pedido;
 
-  const _StatusCard({required this.deliveryConfirmed});
+  const _StatusCard({required this.pedido});
+
+  /// Usa as etapas da API; sem elas, monta a partir do status atual.
+  List<EtapaAluguel> get _etapas {
+    if (pedido.etapas.isNotEmpty) return pedido.etapas;
+
+    final atual = pedido.statusAluguel;
+    final indiceAtual = atual == null
+        ? -1
+        : StatusAluguel.values.indexOf(atual);
+    final finalizado = atual == StatusAluguel.finalizado;
+
+    return [
+      for (final (index, status) in StatusAluguel.values.indexed)
+        EtapaAluguel(
+          status: status,
+          titulo: status.label,
+          concluida: index < indiceAtual || finalizado,
+          atual: index == indiceAtual && !finalizado,
+          pendente: index > indiceAtual,
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final etapas = _etapas;
+    final codigo = pedido.codigo;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
@@ -199,34 +271,24 @@ class _StatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Status da Locação: #COL-2024-1587',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          Text(
+            codigo == null
+                ? 'Status da Locação'
+                : 'Status da Locação: #$codigo',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 18),
-          const _TimelineItem(
-            title: 'Pedido Recebido',
-            subtitle: '✓ Concluído às 09:12',
-            completed: true,
-          ),
-          const _TimelineItem(
-            title: 'Entrega Agendada',
-            subtitle: '✓ Hoje às 14:00',
-            completed: true,
-          ),
-          _TimelineItem(
-            title: 'Caçamba Entregue',
-            subtitle: deliveryConfirmed
-                ? '✓ Entrega confirmada'
-                : 'Aguardando confirmação',
-            completed: deliveryConfirmed,
-          ),
-          const _TimelineItem(
-            title: 'Coleta Agendada',
-            subtitle: '28 Out às 16:00',
-            completed: false,
-            showLine: false,
-          ),
+          for (final (index, etapa) in etapas.indexed)
+            _TimelineItem(
+              title: etapa.titulo,
+              subtitle: etapa.concluida
+                  ? '✓ Concluída'
+                  : etapa.atual
+                  ? 'Etapa atual'
+                  : 'Pendente',
+              completed: etapa.concluida || etapa.atual,
+              showLine: index < etapas.length - 1,
+            ),
         ],
       ),
     );
@@ -304,10 +366,17 @@ class _TimelineItem extends StatelessWidget {
 }
 
 class _CustomerCard extends StatelessWidget {
-  const _CustomerCard();
+  final Aluguel pedido;
+
+  const _CustomerCard({required this.pedido});
 
   @override
   Widget build(BuildContext context) {
+    final consumidor = pedido.consumidor;
+    final nome = consumidor?.nomeCompleto ?? pedido.consumidorNome ?? '-';
+    final email = consumidor?.email;
+    final cep = pedido.endereco?.cep ?? '';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
@@ -319,44 +388,34 @@ class _CustomerCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Nome: Maria Silva',
-            style: TextStyle(fontWeight: FontWeight.w700),
+          Text(
+            'Nome: $nome',
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Telefone: (11) 98888-7777',
-            style: TextStyle(color: Colors.black54, fontSize: 12),
+          Text(
+            'Telefone: ${formatPhone(consumidor?.telefone)}',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
-          const SizedBox(height: 14),
-          const Text(
-            'Endereço: Av. Paulista, 1000 - Bela Vista, São Paulo - SP',
-            style: TextStyle(color: Colors.black54, fontSize: 12),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: double.infinity,
-              height: 145,
-              child: Image.asset(
-                'assets/images/mapa_entrega.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) {
-                  return Container(
-                    color: AppColors.lightGray,
-                    child: const Center(
-                      child: Icon(
-                        Icons.location_on,
-                        color: Colors.red,
-                        size: 55,
-                      ),
-                    ),
-                  );
-                },
-              ),
+          if (email != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'E-mail: $email',
+              style: const TextStyle(color: Colors.black54, fontSize: 12),
             ),
+          ],
+          const SizedBox(height: 14),
+          Text(
+            'Endereço: ${formatEnderecoPedido(pedido.endereco)}',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
+          if (cep.length == 8) ...[
+            const SizedBox(height: 14),
+            Text(
+              'CEP: ${cep.substring(0, 5)}-${cep.substring(5)}',
+              style: const TextStyle(color: Colors.black54, fontSize: 12),
+            ),
+          ],
         ],
       ),
     );
@@ -364,10 +423,16 @@ class _CustomerCard extends StatelessWidget {
 }
 
 class _PaymentCard extends StatelessWidget {
-  const _PaymentCard();
+  final Aluguel pedido;
+
+  const _PaymentCard({required this.pedido});
 
   @override
   Widget build(BuildContext context) {
+    final subtotal = pedido.subtotalItens;
+    final taxaEntrega = pedido.taxaEntrega;
+    final pago = pedido.statusPagamento == StatusPagamento.pago;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
@@ -376,32 +441,168 @@ class _PaymentCard extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Column(
+      child: Column(
         children: [
+          for (final item in pedido.itens) ...[
+            _ItemRow(item: item),
+            const SizedBox(height: 14),
+          ],
+          if (pedido.itens.isNotEmpty) ...[
+            const Divider(color: AppColors.border),
+            const SizedBox(height: 8),
+          ],
           _InformationRow(
-            label: 'Caçamba Alugada:',
-            value: '5m³ - Entulho Obra',
+            label: 'Data do Pedido:',
+            value: formatDate(pedido.dataPedido),
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
+          _InformationRow(
+            label: 'Início da Locação:',
+            value: formatDate(pedido.dataInicio),
+          ),
+          const SizedBox(height: 14),
           _InformationRow(
             label: 'Período Contratado:',
-            value: '5 Dias Corridos',
+            value: formatDias(pedido.diasAluguel),
           ),
-          SizedBox(height: 14),
+          if (subtotal != null) ...[
+            const SizedBox(height: 14),
+            _InformationRow(
+              label: 'Subtotal das Caçambas:',
+              value: formatMoney(subtotal),
+            ),
+          ],
+          if (taxaEntrega != null) ...[
+            const SizedBox(height: 14),
+            _InformationRow(
+              label: 'Taxa de Entrega:',
+              value: formatMoney(taxaEntrega),
+            ),
+          ],
+          const SizedBox(height: 14),
           _InformationRow(
-            label: 'Método de Pagamento:',
-            value: 'PIX (Pago ✓)',
-            valueColor: AppColors.green,
+            label: 'Pagamento:',
+            value: pedido.statusPagamento?.label ?? '-',
+            valueColor: pago ? AppColors.green : const Color(0xFF9A6D00),
           ),
-          SizedBox(height: 14),
-          Divider(color: AppColors.border),
-          SizedBox(height: 8),
+          const SizedBox(height: 14),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: 8),
           _InformationRow(
             label: 'Valor Total:',
-            value: 'R\$ 350,00',
+            value: formatMoney(pedido.precoFinal),
             valueColor: AppColors.green,
             highlighted: true,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  final ItemAluguel item;
+
+  const _ItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cacamba = item.cacamba;
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: CacambaImage(
+              fotoUrl: cacamba?.fotoUrl,
+              tamanhoM3: cacamba?.tamanhoM3 ?? 5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${item.quantidade}x ${cacamba?.nome ?? 'Caçamba'}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (cacamba != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  '${formatVolume(cacamba.tamanhoM3)} • ${cacamba.tipoResiduo}',
+                  style: const TextStyle(color: Colors.black54, fontSize: 11),
+                ),
+              ],
+              const SizedBox(height: 3),
+              Text(
+                '${formatDias(item.diasAluguel)} × '
+                '${formatMoney(item.precoDiaria)}/dia',
+                style: const TextStyle(color: Colors.black54, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          formatMoney(item.subtotal),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  final Avaliacao avaliacao;
+
+  const _ReviewCard({required this.avaliacao});
+
+  @override
+  Widget build(BuildContext context) {
+    final nota = avaliacao.nota.clamp(0, 5);
+    final comentario = avaliacao.comentario;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${'★' * nota}${'☆' * (5 - nota)}  $nota/5',
+            style: const TextStyle(
+              color: Color(0xFF9A6D00),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (comentario != null && comentario.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              comentario,
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ],
+          if (avaliacao.dataAvaliacao != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Avaliado em ${formatDate(avaliacao.dataAvaliacao)}',
+              style: const TextStyle(color: Colors.black54, fontSize: 11),
+            ),
+          ],
         ],
       ),
     );

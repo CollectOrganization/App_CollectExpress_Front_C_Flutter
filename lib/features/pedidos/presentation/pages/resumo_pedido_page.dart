@@ -1,45 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/carrinho.dart';
+import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/app_bottom_navigation.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../../../core/widgets/cacamba_image.dart';
+import '../carrinho_provider.dart';
+import '../widgets/resumo_valores_card.dart';
 
 import 'agendar_entrega_page.dart';
 
 //botoes de navegação do rodapé
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class ResumoPedidoPage extends StatefulWidget {
+class ResumoPedidoPage extends ConsumerStatefulWidget {
   const ResumoPedidoPage({super.key});
 
   @override
-  State<ResumoPedidoPage> createState() => _ResumoPedidoPageState();
+  ConsumerState<ResumoPedidoPage> createState() => _ResumoPedidoPageState();
 }
 
-class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
-  int selectedDays = 3;
-
-  double get subtotal {
-    switch (selectedDays) {
-      case 5:
-        return 400;
-      case 7:
-        return 450;
-      default:
-        return 350;
-    }
-  }
-
-  double get discount => subtotal * 0.10;
-  double get total => subtotal - discount;
-
-  String formatMoney(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
+class _ResumoPedidoPageState extends ConsumerState<ResumoPedidoPage> {
+  /// Itens com uma alteração em andamento na API.
+  final _itensOcupados = <String>{};
 
   @override
   Widget build(BuildContext context) {
+    final carrinho = ref.watch(carrinhoProvider);
+
     return Scaffold(
       drawerScrimColor: const Color(0xD9000000),
       endDrawer: const AppMenuDrawer(),
@@ -69,37 +62,10 @@ class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
                           style: TextStyle(color: Colors.black54, fontSize: 15),
                         ),
                         const SizedBox(height: 18),
-                        _buildProductCard(),
-                        const SizedBox(height: 28),
-                        const _SectionTitle('Endereço de entrega:'),
-                        const SizedBox(height: 10),
-                        const _AddressCard(),
-                        const SizedBox(height: 28),
-                        const _SectionTitle('Resumo de Valores:'),
-                        const SizedBox(height: 10),
-                        _buildValuesCard(),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 58,
-                          child: ElevatedButton(
-                            onPressed: _finishOrder,
-                            style: ElevatedButton.styleFrom(
-                              elevation: 0,
-                              backgroundColor: AppColors.green,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(11),
-                              ),
-                            ),
-                            child: const Text(
-                              'Finalizar Pedido',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                        AsyncValueView(
+                          value: carrinho,
+                          onRetry: () => ref.invalidate(carrinhoProvider),
+                          data: _buildCarrinho,
                         ),
                       ],
                     ),
@@ -121,147 +87,105 @@ class _ResumoPedidoPageState extends State<ResumoPedidoPage> {
     );
   }
 
-  Widget _buildProductCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.lightGray,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'assets/images/cacamba_5m.jpg',
-                  width: 115,
-                  height: 115,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    width: 115,
-                    height: 115,
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.image_outlined),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Caçamba 5m³ - Entulho',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      'Período padrão: 3 dias',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                    SizedBox(height: 7),
-                    Text(
-                      'R\$ 350,00',
-                      style: TextStyle(
-                        color: AppColors.green,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+  Widget _buildCarrinho(Carrinho carrinho) {
+    if (carrinho.isEmpty) return const _CarrinhoVazio();
+
+    final temIndisponivel = carrinho.itens.any(
+      (item) => item.cacamba?.disponivel == false,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final item in carrinho.itens) ...[
+          _ItemCard(
+            item: item,
+            ocupado: _itensOcupados.contains(item.id),
+            onQuantidade: (quantidade) =>
+                _atualizarItem(item, quantidade: quantidade),
+            onDias: (dias) => _atualizarItem(item, diasAluguel: dias),
+            onRemover: () => _removerItem(item),
           ),
-          const SizedBox(height: 16),
-          const Divider(color: AppColors.border),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+        ],
+        const SizedBox(height: 14),
+        const _SectionTitle('Resumo de Valores:'),
+        const SizedBox(height: 10),
+        ResumoValoresCard(resumo: carrinho.resumo),
+        if (temIndisponivel) ...[
+          const SizedBox(height: 12),
           const Text(
-            'Alterar período de locação:',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _PeriodButton(
-                  days: 3,
-                  subtitle: 'Incluso',
-                  selected: selectedDays == 3,
-                  onTap: () => setState(() => selectedDays = 3),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _PeriodButton(
-                  days: 5,
-                  subtitle: '+ R\$ 50',
-                  selected: selectedDays == 5,
-                  onTap: () => setState(() => selectedDays = 5),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _PeriodButton(
-                  days: 7,
-                  subtitle: '+ R\$ 100',
-                  selected: selectedDays == 7,
-                  onTap: () => setState(() => selectedDays = 7),
-                ),
-              ),
-            ],
+            'Remova os itens indisponíveis para continuar.',
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
-      ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 58,
+          child: ElevatedButton(
+            onPressed: _itensOcupados.isEmpty && !temIndisponivel
+                ? _finalizarPedido
+                : null,
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.green,
+              disabledBackgroundColor: AppColors.green.withValues(alpha: 0.55),
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            child: const Text(
+              'Finalizar Pedido',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildValuesCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.lightGray,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          _ValueRow(
-            label: 'Subtotal Caçamba (1x)',
-            value: formatMoney(subtotal),
-          ),
-          const SizedBox(height: 8),
-          const _ValueRow(
-            label: 'Taxa de Entrega',
-            value: 'Grátis',
-            valueColor: AppColors.green,
-          ),
-          const SizedBox(height: 8),
-          _ValueRow(
-            label: 'Desconto Primeira Locação',
-            value: '- ${formatMoney(discount)}',
-            valueColor: Colors.red,
-          ),
-          const SizedBox(height: 10),
-          const Divider(color: AppColors.border),
-          const SizedBox(height: 6),
-          _ValueRow(
-            label: 'Valor Total:',
-            value: formatMoney(total),
-            valueColor: AppColors.green,
-            bold: true,
-          ),
-        ],
-      ),
-    );
+  Future<void> _atualizarItem(
+    ItemCarrinho item, {
+    int? quantidade,
+    int? diasAluguel,
+  }) async {
+    setState(() => _itensOcupados.add(item.id));
+
+    try {
+      await ref
+          .read(carrinhoProvider.notifier)
+          .atualizarItem(
+            item.id,
+            quantidade: quantidade,
+            diasAluguel: diasAluguel,
+          );
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _itensOcupados.remove(item.id));
+    }
   }
 
-  void _finishOrder() {
+  Future<void> _removerItem(ItemCarrinho item) async {
+    setState(() => _itensOcupados.add(item.id));
+
+    try {
+      await ref.read(carrinhoProvider.notifier).removerItem(item.id);
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
+    } finally {
+      if (mounted) setState(() => _itensOcupados.remove(item.id));
+    }
+  }
+
+  void _finalizarPedido() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const AgendarEntregaPage()));
   }
@@ -295,84 +219,133 @@ class _PageHeader extends StatelessWidget {
   }
 }
 
-class _PeriodButton extends StatelessWidget {
-  final int days;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback onTap;
+class _ItemCard extends StatelessWidget {
+  final ItemCarrinho item;
+  final bool ocupado;
+  final ValueChanged<int> onQuantidade;
+  final ValueChanged<int> onDias;
+  final VoidCallback onRemover;
 
-  const _PeriodButton({
-    required this.days,
-    required this.subtitle,
-    required this.selected,
-    required this.onTap,
+  const _ItemCard({
+    required this.item,
+    required this.ocupado,
+    required this.onQuantidade,
+    required this.onDias,
+    required this.onRemover,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.green : Colors.white,
-      borderRadius: BorderRadius.circular(9),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: SizedBox(
-          height: 58,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    final cacamba = item.cacamba;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '$days dias',
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.black,
-                  fontWeight: FontWeight.w700,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 115,
+                  height: 115,
+                  child: CacambaImage(
+                    fotoUrl: cacamba?.fotoUrl,
+                    tamanhoM3: cacamba?.tamanhoM3 ?? 0,
+                  ),
                 ),
               ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.black54,
-                  fontSize: 11,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cacamba?.nome ?? 'Caçamba',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (cacamba != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        '${cacamba.tipoResiduo} • '
+                        '${formatVolume(cacamba.tamanhoM3)}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      Text(
+                        '${formatMoney(cacamba.precoDiaria)} por dia',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                    const SizedBox(height: 7),
+                    Text(
+                      formatMoney(item.subtotal),
+                      style: const TextStyle(
+                        color: AppColors.green,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (cacamba?.disponivel == false) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Indisponível no momento',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Remover do carrinho',
+                onPressed: ocupado ? null : onRemover,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                color: Colors.red,
+                icon: const Icon(Icons.delete_outline, size: 22),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AddressCard extends StatelessWidget {
-  const _AddressCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.lightGray,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.location_on_outlined, color: AppColors.green),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Avenida Paulista, 1000',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+          const SizedBox(height: 16),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _Stepper(
+                  titulo: 'Quantidade:',
+                  texto: '${item.quantidade}',
+                  valor: item.quantidade,
+                  maximo: 10,
+                  habilitado: !ocupado,
+                  onChanged: onQuantidade,
                 ),
-                Text(
-                  'Bela Vista, São Paulo - SP • CEP 01311-200',
-                  style: TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _Stepper(
+                  titulo: 'Período:',
+                  texto: formatDias(item.diasAluguel),
+                  valor: item.diasAluguel,
+                  maximo: 30,
+                  habilitado: !ocupado,
+                  onChanged: onDias,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -380,42 +353,119 @@ class _AddressCard extends StatelessWidget {
   }
 }
 
-class _ValueRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-  final bool bold;
+class _Stepper extends StatelessWidget {
+  final String titulo;
+  final String texto;
+  final int valor;
+  final int maximo;
+  final bool habilitado;
+  final ValueChanged<int> onChanged;
 
-  const _ValueRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-    this.bold = false,
+  const _Stepper({
+    required this.titulo,
+    required this.texto,
+    required this.valor,
+    required this.maximo,
+    required this.habilitado,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: bold ? Colors.black : Colors.black54,
-              fontSize: bold ? 16 : 14,
-              fontWeight: bold ? FontWeight.w800 : FontWeight.normal,
-            ),
+        Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(9),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor ?? Colors.black,
-            fontSize: bold ? 19 : 14,
-            fontWeight: FontWeight.w700,
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: habilitado && valor > 1
+                    ? () => onChanged(valor - 1)
+                    : null,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.remove),
+                color: AppColors.green,
+              ),
+              Expanded(
+                child: Text(
+                  texto,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                onPressed: habilitado && valor < maximo
+                    ? () => onChanged(valor + 1)
+                    : null,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.add),
+                color: AppColors.green,
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CarrinhoVazio extends StatelessWidget {
+  const _CarrinhoVazio();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.shopping_cart_outlined,
+            size: 48,
+            color: Colors.black38,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Seu carrinho está vazio',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Escolha uma caçamba para começar o seu pedido.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil(AppRoutes.services, (_) => false),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            child: const Text(
+              'Ver caçambas',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -466,11 +516,6 @@ class _SustainabilityFooter extends StatelessWidget {
             'ambientais municipais e resoluções do CONAMA. Garantimos o '
             'destino correto para o seu entulho.',
             style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.5),
-          ),
-          SizedBox(height: 16),
-          Text(
-            '☎  Suporte WhatsApp: (11) 99999-9999',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ],
       ),

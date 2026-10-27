@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
-import '../../data/admin_auth_service.dart';
-import '../../../auth/data/auth_service.dart';
+import '../../../auth/data/sessao_provider.dart';
 
-class AdminLoginPage extends StatefulWidget {
+class AdminLoginPage extends ConsumerStatefulWidget {
   const AdminLoginPage({super.key});
 
   @override
-  State<AdminLoginPage> createState() => _AdminLoginPageState();
+  ConsumerState<AdminLoginPage> createState() => _AdminLoginPageState();
 }
 
-class _AdminLoginPageState extends State<AdminLoginPage> {
+class _AdminLoginPageState extends ConsumerState<AdminLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _service = AdminAuthService();
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -216,37 +216,36 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     setState(() => _loading = true);
 
     try {
-      final response = await AuthService().login(
+      final sessao = ref.read(sessaoProvider.notifier);
+      final usuario = await sessao.entrar(
         email: _emailController.text,
-        password: _passwordController.text,
+        senha: _passwordController.text,
       );
 
-      if (!mounted) return;
-
-      final usuario = response['usuario'] as Map<String, dynamic>?;
-      final tipoPerfil = usuario?['tipo_perfil']?.toString().toUpperCase();
-
-      if (tipoPerfil != 'ADMIN') {
-        await AuthService().logout();
-        throw const AdminAuthException(
+      if (!usuario.isAdmin) {
+        await sessao.sair();
+        throw const ApiException(
           'Este usuário não possui permissão administrativa.',
         );
       }
 
-      final nome = usuario?['nome_completo'] ?? 'Administrador';
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Bem-vindo(a) ao painel administrativo, $nome!'),
+          content: Text(
+            'Bem-vindo(a) ao painel administrativo, ${usuario.nomeCompleto}!',
+          ),
           backgroundColor: AppColors.green,
         ),
       );
 
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.supplierHome,
+        AppRoutes.adminHome,
         (_) => false,
       );
-    } on AdminAuthException catch (error) {
+    } on ApiException catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

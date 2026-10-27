@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
-import '../../data/auth_service.dart';
 
+import '../../../../core/models/enums.dart';
+import '../../../../core/models/usuario.dart';
 import '../../../../core/navigation/app_routes.dart';
+import '../../../../core/network/api_exception.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../../data/sessao_provider.dart';
 
 //botoes de navegação do rodapé
 //import '../../../../core/widgets/app_bottom_navigation.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final _authService = AuthService();
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -280,44 +284,45 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await _authService.login(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
+      final usuario = await ref
+          .read(sessaoProvider.notifier)
+          .entrar(
+            email: _emailController.text,
+            senha: _passwordController.text,
+          );
 
       if (!mounted) return;
 
-      final usuario = response['usuario'] as Map<String, dynamic>?;
-      final nome = usuario?['nome_completo'] ?? 'Usuário';
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Bem-vindo(a), $nome!'),
+          content: Text('Bem-vindo(a), ${usuario.nomeCompleto}!'),
           backgroundColor: AppColors.green,
         ),
       );
-
-      final tipoPerfil = usuario?['tipo_perfil']?.toString().toUpperCase();
-      if (tipoPerfil == 'ADMIN') {
-        Navigator.of(context).pushReplacementNamed('/admin');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _irParaAreaDoPerfil(usuario);
+    } on ApiException catch (error) {
+      if (mounted) showApiError(context, error);
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// O cliente volta para onde estava (ex.: o carrinho, quando o login foi
+  /// pedido no meio de uma ação). Fornecedor e admin vão para o painel.
+  void _irParaAreaDoPerfil(Usuario usuario) {
+    final navigator = Navigator.of(context);
+
+    if (usuario.isConsumidor && navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    final rota = switch (usuario.tipoPerfil) {
+      TipoPerfil.cacambeiro => AppRoutes.supplierHome,
+      TipoPerfil.admin => AppRoutes.adminHome,
+      _ => AppRoutes.home,
+    };
+    navigator.pushNamedAndRemoveUntil(rota, (_) => false);
   }
 
   void _openRegistration() {

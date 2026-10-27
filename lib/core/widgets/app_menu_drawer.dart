@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/data/sessao_provider.dart';
+import '../models/enums.dart';
+import '../models/usuario.dart';
 import '../navigation/app_routes.dart';
 import '../theme/app_colors.dart';
 import 'app_logo.dart';
-import '../../features/auth/data/auth_service.dart';
 
-class AppMenuDrawer extends StatelessWidget {
+class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
 
   void _closeDrawer(BuildContext context) {
@@ -27,183 +30,193 @@ class AppMenuDrawer extends StatelessWidget {
     navigator.pushNamedAndRemoveUntil(routeName, (route) => false);
   }
 
+  /// Painel ou perfil de cada tipo de conta.
+  static String _areaDoPerfil(Usuario usuario) {
+    return switch (usuario.tipoPerfil) {
+      TipoPerfil.cacambeiro => AppRoutes.supplierHome,
+      TipoPerfil.admin => AppRoutes.adminHome,
+      _ => AppRoutes.customerProfile,
+    };
+  }
+
+  Future<void> _sair(BuildContext context, WidgetRef ref) async {
+    // O context do drawer deixa de existir quando ele fecha.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final sessao = ref.read(sessaoProvider.notifier);
+
+    navigator.pop();
+    await sessao.sair();
+
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Você saiu da sua conta.'),
+        backgroundColor: Colors.black87,
+      ),
+    );
+    navigator.pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final currentRoute = ModalRoute.of(context)?.settings.name;
+    final usuario = ref.watch(sessaoProvider).value;
+    final isLoggedIn = usuario != null;
 
-    return ValueListenableBuilder<Map<String, dynamic>?>(
-      valueListenable: AuthService.currentUserNotifier,
-      builder: (context, user, _) {
-        final isLoggedIn = user != null;
-        final isAdmin = user?['tipo_perfil'] == 'ADMIN';
-
-        return Drawer(
-          width: screenWidth * 0.85,
-          elevation: 0,
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 18, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: AppLogo(
-                          onTap: () => _navigate(context, AppRoutes.home),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Fechar menu',
-                        onPressed: () => _closeDrawer(context),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.black54,
-                          foregroundColor: Colors.white,
-                          hoverColor: Colors.black87,
-                        ),
-                        icon: const Icon(Icons.close, size: 17),
-                      ),
-                    ],
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  child: _AccountCard(
-                    user: user,
-                    onTap: () {
-                      _closeDrawer(context);
-                      if (isLoggedIn) {
-                        if (isAdmin) {
-                          _navigate(context, AppRoutes.supplierHome);
-                        } else {
-                          _navigate(context, AppRoutes.customerProfile);
-                        }
-                      } else {
-                        Navigator.of(context).pushNamed(AppRoutes.login);
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    child: Column(
-                      children: [
-                        AppDrawerItem(
-                          icon: Icons.home_outlined,
-                          title: 'INÍCIO',
-                          selected: currentRoute == AppRoutes.home,
-                          onTap: () => _navigate(context, AppRoutes.home),
-                        ),
-                        AppDrawerItem(
-                          icon: Icons.local_shipping_outlined,
-                          title: 'SERVIÇOS',
-                          selected: currentRoute == AppRoutes.services,
-                          onTap: () => _navigate(context, AppRoutes.services),
-                        ),
-                        AppDrawerItem(
-                          icon: Icons.grid_view_outlined,
-                          title: 'MODELOS',
-                          selected: currentRoute == AppRoutes.models,
-                          onTap: () => _navigate(context, AppRoutes.models),
-                        ),
-                        if (isAdmin) ...[
-                          AppDrawerItem(
-                            icon: Icons.admin_panel_settings_outlined,
-                            title: 'PAINEL ADMIN',
-                            selected: currentRoute == AppRoutes.supplierHome,
-                            onTap: () => _navigate(context, AppRoutes.supplierHome),
-                          ),
-                          AppDrawerItem(
-                            icon: Icons.assignment_outlined,
-                            title: 'GESTÃO PEDIDOS',
-                            selected: currentRoute == AppRoutes.supplierOrders,
-                            onTap: () => _navigate(context, AppRoutes.supplierOrders),
-                          ),
-                        ],
-                        if (!isLoggedIn)
-                          AppDrawerItem(
-                            icon: Icons.login_outlined,
-                            title: 'LOGIN',
-                            selected: currentRoute == AppRoutes.login,
-                            onTap: () => _navigate(context, AppRoutes.login),
-                          ),
-                        if (isLoggedIn)
-                          AppDrawerItem(
-                            icon: Icons.logout_rounded,
-                            title: 'SAIR',
-                            onTap: () async {
-                              _closeDrawer(context);
-                              await AuthService().logout();
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Você saiu da sua conta.'),
-                                    backgroundColor: Colors.black87,
-                                  ),
-                                );
-                                Navigator.of(context).pushNamedAndRemoveUntil(
-                                  AppRoutes.login,
-                                  (route) => false,
-                                );
-                              }
-                            },
-                          ),
-                      ],
+    return Drawer(
+      width: screenWidth * 0.85,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 18, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppLogo(
+                      onTap: () => _navigate(context, AppRoutes.home),
                     ),
                   ),
-                ),
-
-                AppDrawerFooter(
-                  isLoggedIn: isLoggedIn,
-                  onRegister: () => _navigate(context, AppRoutes.register),
-                  onAbout: () => _navigate(context, AppRoutes.about),
-                ),
-              ],
+                  IconButton(
+                    tooltip: 'Fechar menu',
+                    onPressed: () => _closeDrawer(context),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black54,
+                      foregroundColor: Colors.white,
+                      hoverColor: Colors.black87,
+                    ),
+                    icon: const Icon(Icons.close, size: 17),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: _AccountCard(
+                usuario: usuario,
+                onTap: () {
+                  if (usuario != null) {
+                    _navigate(context, _areaDoPerfil(usuario));
+                  } else {
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
+                    navigator.pushNamed(AppRoutes.login);
+                  }
+                },
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Column(
+                  children: [
+                    AppDrawerItem(
+                      icon: Icons.home_outlined,
+                      title: 'INÍCIO',
+                      selected: currentRoute == AppRoutes.home,
+                      onTap: () => _navigate(context, AppRoutes.home),
+                    ),
+                    AppDrawerItem(
+                      icon: Icons.local_shipping_outlined,
+                      title: 'SERVIÇOS',
+                      selected: currentRoute == AppRoutes.services,
+                      onTap: () => _navigate(context, AppRoutes.services),
+                    ),
+                    AppDrawerItem(
+                      icon: Icons.grid_view_outlined,
+                      title: 'MODELOS',
+                      selected: currentRoute == AppRoutes.models,
+                      onTap: () => _navigate(context, AppRoutes.models),
+                    ),
+                    if (usuario?.isConsumidor ?? false)
+                      AppDrawerItem(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'MEUS PEDIDOS',
+                        selected: currentRoute == AppRoutes.customerOrders,
+                        onTap: () =>
+                            _navigate(context, AppRoutes.customerOrders),
+                      ),
+                    if (usuario?.isCacambeiro ?? false) ...[
+                      AppDrawerItem(
+                        icon: Icons.storefront_outlined,
+                        title: 'MEU PAINEL',
+                        selected: currentRoute == AppRoutes.supplierHome,
+                        onTap: () => _navigate(context, AppRoutes.supplierHome),
+                      ),
+                      AppDrawerItem(
+                        icon: Icons.assignment_outlined,
+                        title: 'GESTÃO PEDIDOS',
+                        selected: currentRoute == AppRoutes.supplierOrders,
+                        onTap: () =>
+                            _navigate(context, AppRoutes.supplierOrders),
+                      ),
+                    ],
+                    if (usuario?.isAdmin ?? false)
+                      AppDrawerItem(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: 'PAINEL ADMIN',
+                        selected: currentRoute == AppRoutes.adminHome,
+                        onTap: () => _navigate(context, AppRoutes.adminHome),
+                      ),
+                    if (!isLoggedIn)
+                      AppDrawerItem(
+                        icon: Icons.login_outlined,
+                        title: 'LOGIN',
+                        selected: currentRoute == AppRoutes.login,
+                        onTap: () => _navigate(context, AppRoutes.login),
+                      ),
+                    if (isLoggedIn)
+                      AppDrawerItem(
+                        icon: Icons.logout_rounded,
+                        title: 'SAIR',
+                        onTap: () => _sair(context, ref),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            AppDrawerFooter(
+              isLoggedIn: isLoggedIn,
+              onRegister: () => _navigate(context, AppRoutes.register),
+              onAbout: () => _navigate(context, AppRoutes.about),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _AccountCard extends StatelessWidget {
-  final Map<String, dynamic>? user;
+  final Usuario? usuario;
   final VoidCallback onTap;
 
-  const _AccountCard({
-    required this.user,
-    required this.onTap,
-  });
+  const _AccountCard({required this.usuario, required this.onTap});
 
-  String _formatProfile(String? tipoPerfil) {
-    switch (tipoPerfil) {
-      case 'ADMIN':
-        return 'Administrador';
-      case 'CACAMBEIRO':
-        return 'Fornecedor de Caçambas';
-      case 'PARCEIRO':
-        return 'Parceiro de Reciclagem';
-      case 'CONSUMIDOR':
-        return 'Cliente';
-      default:
-        return 'Usuário Conectado';
-    }
+  String _formatProfile(TipoPerfil? tipoPerfil) {
+    return switch (tipoPerfil) {
+      TipoPerfil.admin => 'Administrador',
+      TipoPerfil.cacambeiro => 'Fornecedor de Caçambas',
+      TipoPerfil.consumidor => 'Cliente',
+      null => 'Usuário Conectado',
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoggedIn = user != null;
-    final userName = user?['nome_completo'] ?? 'Usuário';
-    final profileLabel = _formatProfile(user?['tipo_perfil']);
+    final isLoggedIn = usuario != null;
+    final userName = usuario?.nomeCompleto ?? 'Usuário';
+    final profileLabel = _formatProfile(usuario?.tipoPerfil);
 
     return Material(
       color: const Color(0xFFD7D7D7),

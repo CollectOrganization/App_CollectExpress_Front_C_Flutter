@@ -1,72 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/aluguel.dart';
+import '../../../../core/models/enums.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/app_bottom_navigation.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_menu_drawer.dart';
+import '../../../../core/widgets/async_value_view.dart';
+import '../fornecedor_providers.dart';
+import '../widgets/pedido_fornecedor.dart';
 import 'detalhes_pedido_page.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
-enum AdminOrderStatus { novo, emAndamento, concluido }
-
-class AdminOrder {
-  final String number;
-  final String customer;
-  final String equipment;
-  final String address;
-  AdminOrderStatus status;
-
-  AdminOrder({
-    required this.number,
-    required this.customer,
-    required this.equipment,
-    required this.address,
-    required this.status,
-  });
-}
-
-class GestaoPedidosPage extends StatefulWidget {
+class GestaoPedidosPage extends ConsumerStatefulWidget {
   const GestaoPedidosPage({super.key});
 
   @override
-  State<GestaoPedidosPage> createState() => _GestaoPedidosPageState();
+  ConsumerState<GestaoPedidosPage> createState() => _GestaoPedidosPageState();
 }
 
-class _GestaoPedidosPageState extends State<GestaoPedidosPage> {
-  AdminOrderStatus selectedFilter = AdminOrderStatus.novo;
+class _GestaoPedidosPageState extends ConsumerState<GestaoPedidosPage> {
+  /// `null` mostra todos os pedidos.
+  StatusAluguel? selectedFilter;
 
-  final List<AdminOrder> orders = [
-    AdminOrder(
-      number: '#COL-2024-1587',
-      customer: 'Maria Silva',
-      equipment: '5m³ Entulho',
-      address: 'Av. Paulista, 1000 - Bela Vista',
-      status: AdminOrderStatus.novo,
-    ),
-    AdminOrder(
-      number: '#COL-2024-1582',
-      customer: 'Roberto Costa',
-      equipment: '7m³ Recicláveis',
-      address: 'R. Augusta, 500 - Consolação',
-      status: AdminOrderStatus.emAndamento,
-    ),
-    AdminOrder(
-      number: '#COL-2024-1579',
-      customer: 'Claudio Pinheiro',
-      equipment: '3m³ Poda',
-      address: 'Al. Lorena, 250 - Jardins',
-      status: AdminOrderStatus.concluido,
-    ),
-  ];
-
-  List<AdminOrder> get filteredOrders {
-    return orders.where((order) => order.status == selectedFilter).toList();
-  }
-
-  int count(AdminOrderStatus status) {
-    return orders.where((order) => order.status == status).length;
-  }
+  final Set<String> _atualizando = {};
 
   @override
   Widget build(BuildContext context) {
@@ -78,90 +37,35 @@ class _GestaoPedidosPageState extends State<GestaoPedidosPage> {
         child: CustomScrollView(
           slivers: [
             const SliverToBoxAdapter(child: _AdminHeader()),
-            SliverToBoxAdapter(
+            const SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 30, 18, 24),
+                padding: EdgeInsets.fromLTRB(18, 30, 18, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Gestão de Pedidos',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
+                    SizedBox(height: 4),
+                    Text(
                       'Monitore e atualize o status das locações',
                       style: TextStyle(color: Colors.black54, fontSize: 13),
-                    ),
-                    const SizedBox(height: 24),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _filterChip(
-                            status: AdminOrderStatus.novo,
-                            label: 'Novos (${count(AdminOrderStatus.novo)})',
-                          ),
-                          const SizedBox(width: 10),
-                          _filterChip(
-                            status: AdminOrderStatus.emAndamento,
-                            label:
-                                'Em Andamento (${count(AdminOrderStatus.emAndamento)})',
-                          ),
-                          const SizedBox(width: 10),
-                          _filterChip(
-                            status: AdminOrderStatus.concluido,
-                            label:
-                                'Concluídos (${count(AdminOrderStatus.concluido)})',
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            if (filteredOrders.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Text(
-                    'Nenhum pedido encontrado.',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 70),
-                sliver: SliverList.separated(
-                  itemCount: filteredOrders.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    final order = filteredOrders[index];
-
-                    return _OrderCard(
-                      order: order,
-                      onTap: () => _openOrderDetails(order),
-                      onAccept: () => _changeStatus(
-                        order,
-                        AdminOrderStatus.emAndamento,
-                        'Pedido aceito.',
-                      ),
-                      onReject: () => _rejectOrder(order),
-                      onDelivered: () => _changeStatus(
-                        order,
-                        AdminOrderStatus.concluido,
-                        'Pedido marcado como entregue.',
-                      ),
-                      onHistory: () => _showHistory(order),
-                    );
-                  },
-                ),
+            SliverToBoxAdapter(
+              child: AsyncValueView(
+                value: ref.watch(pedidosRecebidosProvider),
+                onRetry: () => ref.invalidate(pedidosRecebidosProvider),
+                data: _buildPedidos,
               ),
+            ),
           ],
         ),
       ),
@@ -169,10 +73,66 @@ class _GestaoPedidosPageState extends State<GestaoPedidosPage> {
     );
   }
 
-  Widget _filterChip({
-    required AdminOrderStatus status,
-    required String label,
-  }) {
+  Widget _buildPedidos(List<Aluguel> pedidos) {
+    final filtrados = selectedFilter == null
+        ? pedidos
+        : pedidos
+              .where((pedido) => pedido.statusAluguel == selectedFilter)
+              .toList();
+
+    int count(StatusAluguel status) {
+      return pedidos.where((pedido) => pedido.statusAluguel == status).length;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 70),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _filterChip(status: null, label: 'Todos (${pedidos.length})'),
+                for (final status in StatusAluguel.values) ...[
+                  const SizedBox(width: 10),
+                  _filterChip(
+                    status: status,
+                    label: '${status.label} (${count(status)})',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          if (filtrados.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: Text(
+                  pedidos.isEmpty
+                      ? 'Você ainda não recebeu pedidos.'
+                      : 'Nenhum pedido encontrado.',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+              ),
+            )
+          else
+            for (final pedido in filtrados) ...[
+              _OrderCard(
+                order: pedido,
+                atualizando: _atualizando.contains(pedido.id),
+                onTap: () => _openOrderDetails(pedido),
+                onAdvance: () => _avancarStatus(pedido),
+              ),
+              const SizedBox(height: 16),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip({required StatusAluguel? status, required String label}) {
     final selected = selectedFilter == status;
 
     return ChoiceChip(
@@ -194,94 +154,36 @@ class _GestaoPedidosPageState extends State<GestaoPedidosPage> {
     );
   }
 
-  void _openOrderDetails(AdminOrder order) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const DetalhesPedidoPage()));
-  }
-
-  void _changeStatus(
-    AdminOrder order,
-    AdminOrderStatus status,
-    String message,
-  ) {
-    setState(() {
-      order.status = status;
-      selectedFilter = status;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.green),
-    );
-  }
-
-  Future<void> _rejectOrder(AdminOrder order) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Recusar pedido'),
-          content: Text('Deseja recusar o pedido ${order.number}?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Recusar', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) return;
-
-    setState(() {
-      orders.remove(order);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pedido recusado.'),
-        backgroundColor: Colors.red,
+  void _openOrderDetails(Aluguel order) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DetalhesPedidoPage(aluguelId: order.id),
       ),
     );
   }
 
-  void _showHistory(AdminOrder order) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Histórico ${order.number}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text('✓ Pedido criado'),
-                const SizedBox(height: 10),
-                const Text('✓ Pagamento confirmado'),
-                const SizedBox(height: 10),
-                const Text('✓ Caçamba entregue'),
-                const SizedBox(height: 10),
-                const Text('✓ Locação concluída'),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  Future<void> _avancarStatus(Aluguel pedido) async {
+    final proximo = pedido.statusAluguel?.proximo;
+    if (proximo == null || _atualizando.contains(pedido.id)) return;
+
+    if (!await confirmarAvancoStatus(context, proximo) || !mounted) return;
+
+    setState(() => _atualizando.add(pedido.id));
+    try {
+      final atualizado = await avancarStatusPedido(
+        context,
+        ref,
+        pedido.id,
+        proximo,
+      );
+
+      // Com um filtro ativo, segue o pedido para a nova etapa.
+      if (atualizado && mounted && selectedFilter != null) {
+        setState(() => selectedFilter = proximo);
+      }
+    } finally {
+      if (mounted) setState(() => _atualizando.remove(pedido.id));
+    }
   }
 }
 
@@ -341,24 +243,23 @@ class _AdminHeader extends StatelessWidget {
 }
 
 class _OrderCard extends StatelessWidget {
-  final AdminOrder order;
+  final Aluguel order;
+  final bool atualizando;
   final VoidCallback onTap;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-  final VoidCallback onDelivered;
-  final VoidCallback onHistory;
+  final VoidCallback onAdvance;
 
   const _OrderCard({
     required this.order,
+    required this.atualizando,
     required this.onTap,
-    required this.onAccept,
-    required this.onReject,
-    required this.onDelivered,
-    required this.onHistory,
+    required this.onAdvance,
   });
 
   @override
   Widget build(BuildContext context) {
+    final telefone = order.consumidor?.telefone;
+    final pagamento = order.statusPagamento?.label ?? '-';
+
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
@@ -378,29 +279,39 @@ class _OrderCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      order.number,
+                      order.consumidorNome ?? 'Cliente',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  _StatusBadge(status: order.status),
+                  const SizedBox(width: 10),
+                  StatusAluguelBadge(status: order.statusAluguel),
                 ],
               ),
               const SizedBox(height: 16),
+              if (telefone != null) ...[
+                Text(
+                  'Telefone: ${formatPhone(telefone)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 7),
+              ],
               Text(
-                'Cliente: ${order.customer}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                'Equipamento: ${order.equipment}',
+                'Endereço: ${formatEnderecoPedido(order.endereco)}',
                 style: const TextStyle(color: Colors.black54, fontSize: 12),
               ),
               const SizedBox(height: 7),
               Text(
-                'Endereço: ${order.address}',
+                'Início: ${formatDate(order.dataInicio)} • '
+                '${formatDias(order.diasAluguel)}',
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Valor: ${formatMoney(order.precoFinal)} • '
+                'Pagamento: $pagamento',
                 style: const TextStyle(color: Colors.black54, fontSize: 12),
               ),
               const SizedBox(height: 18),
@@ -415,134 +326,54 @@ class _OrderCard extends StatelessWidget {
   }
 
   Widget _buildActions() {
-    switch (order.status) {
-      case AdminOrderStatus.novo:
-        return Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: onReject,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                ),
-                child: const Text(
-                  'Recusar',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: onAccept,
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: AppColors.green,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                ),
-                child: const Text(
-                  'Aceitar',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        );
+    final proximo = order.statusAluguel?.proximo;
 
-      case AdminOrderStatus.emAndamento:
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: onDelivered,
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: AppColors.green,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(46),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(9),
-              ),
-            ),
-            child: const Text(
-              'Marcar como Entregue',
-              style: TextStyle(fontWeight: FontWeight.w700),
+    if (proximo == null) {
+      return SizedBox(
+        width: double.infinity,
+        child: TextButton(
+          onPressed: onTap,
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.lightGray,
+            foregroundColor: Colors.black54,
+            minimumSize: const Size.fromHeight(46),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
             ),
           ),
-        );
-
-      case AdminOrderStatus.concluido:
-        return SizedBox(
-          width: double.infinity,
-          child: TextButton(
-            onPressed: onHistory,
-            style: TextButton.styleFrom(
-              backgroundColor: AppColors.lightGray,
-              foregroundColor: Colors.black54,
-              minimumSize: const Size.fromHeight(46),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(9),
-              ),
-            ),
-            child: const Text(
-              'Visualizar Histórico Completo',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+          child: const Text(
+            'Visualizar Detalhes do Pedido',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-        );
-    }
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final AdminOrderStatus status;
-
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    late final String label;
-    late final Color color;
-    late final Color background;
-
-    switch (status) {
-      case AdminOrderStatus.novo:
-        label = 'Novo';
-        color = const Color(0xFF9A6D00);
-        background = const Color(0xFFFFF9D9);
-
-      case AdminOrderStatus.emAndamento:
-        label = 'Em Andamento';
-        color = AppColors.green;
-        background = const Color(0xFFE5F6E7);
-
-      case AdminOrderStatus.concluido:
-        label = 'Concluído';
-        color = Colors.black54;
-        background = AppColors.lightGray;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
         ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: atualizando ? null : onAdvance,
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: AppColors.green,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.green.withValues(alpha: 0.55),
+          minimumSize: const Size.fromHeight(46),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        ),
+        child: atualizando
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                textoAvancarStatus(proximo),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
       ),
     );
   }
