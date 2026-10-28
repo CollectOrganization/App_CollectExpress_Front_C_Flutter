@@ -41,6 +41,9 @@ class CacambaImage extends StatelessWidget {
       url,
       width: double.infinity,
       fit: fit,
+      // No web, sites sem CORS bloqueiam o download da imagem; nesse caso
+      // o Flutter mostra a foto com uma tag <img> comum.
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
       errorBuilder: (_, _, _) => local,
     );
   }

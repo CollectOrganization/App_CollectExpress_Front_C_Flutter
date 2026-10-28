@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Sem isto o APK de release não acessa a API nem as fotos das caçambas. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="app_collect_express_with_flutter"
         android:name="${applicationName}"
