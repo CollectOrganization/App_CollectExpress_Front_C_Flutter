@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>body{margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif}#d{padding:20px}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body><div id="d"><pre class="mermaid">
+%%{init: {"theme":"neutral","er":{"fontSize":16,"layoutDirection":"TB","entityPadding":12}, "themeVariables":{"fontFamily":"Arial"}}}%%
+erDiagram
+  usuarios ||--o| detalhes_cacambeiro : "possui"
+  usuarios ||--o| detalhes_parceiro : "possui"
+  usuarios ||--o{ cacambas : "oferece"
+  usuarios ||--o{ enderecos : "cadastra"
+  usuarios ||--o| carrinho : "consumidor"
+  usuarios ||--o{ alugueis : "consumidor e cacambeiro"
+  usuarios ||--o{ avaliacoes : "consumidor e cacambeiro"
+  usuarios ||--o{ refresh_tokens : "sessoes"
+  usuarios ||--o{ password_recovery_tokens : "recuperacao"
+  usuarios ||--o{ coletas : "consumidor e parceiro"
+  carrinho ||--o{ itens_carrinho : "contem"
+  cacambas ||--o{ itens_carrinho : "selecionada em"
+  enderecos ||--o{ alugueis : "entrega"
+  enderecos ||--o{ coletas : "local"
+  alugueis ||--|{ itens_aluguel : "contem"
+  cacambas ||--o{ itens_aluguel : "locada em"
+  alugueis ||--o| avaliacoes : "recebe"
+</pre></div><script>mermaid.initialize({startOnLoad:true});</script></body></html>
