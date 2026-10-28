@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>body{margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif}#d{padding:20px}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body><div id="d"><pre class="mermaid">
+%%{init: {"theme":"neutral","flowchart":{"nodeSpacing":18,"rankSpacing":70,"curve":"basis"},"themeVariables":{"fontFamily":"Arial","fontSize":"15px"}}}%%
+flowchart LR
+  V(["👤 Visitante"])
+  C(["👤 Consumidor"])
+  F(["👤 Fornecedor de caçambas"])
+  A(["👤 Administrador"])
+  subgraph S["Sistema CollectExpress"]
+    direction TB
+    UC1(["Consultar catálogo e detalhe das caçambas"])
+    UC2(["Cadastrar-se"])
+    UC12(["Consultar endereço pelo CEP"])
+    UC3(["Autenticar-se e encerrar a sessão"])
+    UC4(["Gerenciar carrinho"])
+    UC5(["Agendar e confirmar a locação"])
+    UC6(["Acompanhar pedidos e avaliar o serviço"])
+    UC7(["Gerenciar perfil e endereços"])
+    UC8(["Gerenciar caçambas e disponibilidade"])
+    UC9(["Atualizar o status dos pedidos"])
+    UC10(["Consultar painel de métricas"])
+    UC11(["Gerenciar usuários e categorias"])
+  end
+  V --- UC1
+  V --- UC2
+  C --- UC3
+  F --- UC3
+  A --- UC3
+  C --- UC4
+  C --- UC5
+  C --- UC6
+  C --- UC7
+  F --- UC8
+  F --- UC9
+  F --- UC10
+  A --- UC10
+  A --- UC11
+  UC2 -.->|include| UC12
+  UC5 -.->|include| UC4
+</pre></div><script>mermaid.initialize({startOnLoad:true});</script></body></html>

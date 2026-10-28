@@ -1,0 +1,122 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>body{margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif}#d{padding:20px}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body><div id="d"><pre class="mermaid">
+%%{init: {"theme":"neutral","er":{"fontSize":15,"layoutDirection":"TB","entityPadding":12}, "themeVariables":{"fontFamily":"Arial"}}}%%
+erDiagram
+  usuarios ||--o| detalhes_cacambeiro : "possui"
+  usuarios ||--o| detalhes_parceiro : "possui"
+  usuarios ||--o{ cacambas : "oferece"
+  usuarios ||--o{ enderecos : "cadastra"
+  usuarios ||--o| carrinho : "consumidor"
+  usuarios ||--o{ alugueis : "consumidor e cacambeiro"
+  usuarios ||--o{ avaliacoes : "consumidor e cacambeiro"
+  usuarios ||--o{ refresh_tokens : "sessoes"
+  usuarios ||--o{ password_recovery_tokens : "recuperacao"
+  usuarios ||--o{ coletas : "consumidor e parceiro"
+  carrinho ||--o{ itens_carrinho : "contem"
+  cacambas ||--o{ itens_carrinho : "selecionada em"
+  enderecos ||--o{ alugueis : "entrega"
+  enderecos ||--o{ coletas : "local"
+  alugueis ||--|{ itens_aluguel : "contem"
+  cacambas ||--o{ itens_aluguel : "locada em"
+  alugueis ||--o| avaliacoes : "recebe"
+  usuarios {
+    uuid id PK
+    varchar nome_completo
+    varchar email UK
+    varchar senha_hash
+    enum tipo_perfil
+    varchar documento UK
+    varchar telefone
+    enum status
+    int token_version
+  }
+  detalhes_cacambeiro {
+    uuid id PK
+    uuid usuario_id FK
+    time horario_inicio
+    time horario_fim
+    decimal raio_entrega_km
+    decimal taxa_entrega
+  }
+  detalhes_parceiro {
+    uuid id PK
+    uuid usuario_id FK
+  }
+  cacambas {
+    uuid id PK
+    uuid cacambeiro_id FK
+    varchar nome
+    varchar tipo_residuo
+    decimal tamanho_m3
+    decimal preco_diaria
+    bool disponivel
+  }
+  enderecos {
+    uuid id PK
+    uuid usuario_id FK
+    varchar cep
+    varchar logradouro
+    varchar numero
+    varchar cidade_estado
+  }
+  carrinho {
+    uuid id PK
+    uuid consumidor_id FK
+    uuid cacambeiro_id FK
+  }
+  itens_carrinho {
+    uuid id PK
+    uuid carrinho_id FK
+    uuid cacamba_id FK
+    int quantidade
+    int dias_aluguel
+  }
+  alugueis {
+    uuid id PK
+    uuid consumidor_id FK
+    uuid cacambeiro_id FK
+    uuid endereco_id FK
+    date data_inicio
+    decimal preco_final
+    enum status_pagamento
+    enum status_aluguel
+  }
+  itens_aluguel {
+    uuid id PK
+    uuid aluguel_id FK
+    uuid cacamba_id FK
+    int quantidade
+    int dias_aluguel
+    decimal preco_diaria
+  }
+  avaliacoes {
+    uuid id PK
+    uuid aluguel_id FK
+    int nota
+    varchar comentario
+  }
+  refresh_tokens {
+    uuid id PK
+    uuid usuario_id FK
+    varchar token_hash UK
+    timestamp expires_at
+  }
+  password_recovery_tokens {
+    uuid id PK
+    uuid usuario_id FK
+    varchar token_hash UK
+    timestamp used_at
+  }
+  coletas {
+    uuid id PK
+    uuid consumidor_id FK
+    uuid parceiro_id FK
+    uuid endereco_id FK
+    varchar status
+  }
+  categorias {
+    uuid id PK
+    varchar nome UK
+  }
+</pre></div><script>mermaid.initialize({startOnLoad:true});</script></body></html>
