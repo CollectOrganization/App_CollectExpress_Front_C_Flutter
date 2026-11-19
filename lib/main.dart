@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'core/acessibilidade/acessibilidade.dart';
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_menu_drawer.dart';
 import 'core/navigation/app_routes.dart';
@@ -71,6 +72,9 @@ class CollectApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      // Tamanho do texto e alto contraste escolhidos no menu lateral.
+      builder: (context, child) =>
+          AcessibilidadeBuilder(child: child ?? const SizedBox.shrink()),
       initialRoute: AppRoutes.home,
       routes: {
         // Cliente
