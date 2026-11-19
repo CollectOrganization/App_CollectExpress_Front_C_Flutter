@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_print — roteiro de linha de comando que imprime a evidência.
 
-// Evidência do CT-16: consulta o ViaCEP com o mesmo CepService usado nos
-// formulários de cadastro e de endereço do app.
+// Evidência do CT-16 e do CT-17: consulta o ViaCEP com o mesmo CepService
+// usado nos formulários de cadastro e de endereço do app.
 //
 // Uso: dart run tool/cep_evidence.dart > test-results/cep-evidence.txt
 import 'package:app_collect_express_with_flutter/core/services/cep_service.dart';
