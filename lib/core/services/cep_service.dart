@@ -6,7 +6,12 @@ import 'package:http/http.dart' as http;
 import '../models/cep_address.dart';
 
 class CepService {
+  /// [client] permite trocar o acesso à rede nos testes.
+  CepService({this.client});
+
   static const _baseUrl = 'https://viacep.com.br/ws';
+
+  final http.Client? client;
 
   Future<CepAddress> findAddress(String cep) async {
     final normalizedCep = cep.replaceAll(RegExp(r'\D'), '');
@@ -16,9 +21,10 @@ class CepService {
     }
 
     try {
-      final response = await http
-          .get(Uri.parse('$_baseUrl/$normalizedCep/json/'))
-          .timeout(const Duration(seconds: 10));
+      final uri = Uri.parse('$_baseUrl/$normalizedCep/json/');
+      final response = await (client?.get(uri) ?? http.get(uri)).timeout(
+        const Duration(seconds: 10),
+      );
 
       if (response.statusCode != 200) {
         throw const CepException('Não foi possível consultar o CEP.');
@@ -26,7 +32,9 @@ class CepService {
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
 
-      if (json['erro'] == true) {
+      // O ViaCEP responde {"erro": "true"} (texto) para CEP inexistente;
+      // versões antigas respondiam {"erro": true}. A chave basta.
+      if (json.containsKey('erro')) {
         throw const CepException('CEP não encontrado.');
       }
 

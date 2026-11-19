@@ -2,16 +2,16 @@
 
 ## flutter --version
 Flutter 3.47.5 • channel stable • https://github.com/flutter/flutter.git
-Framework • revision 6a19cca564 (6 weeks ago) • 2026-09-17 14:13:22 -0400
-Engine • hash ab598368592da0064197e2bc15c7f5b0a2c6bb1f (revision af7e796e16) (1 months ago) • 2026-09-16 18:35:09.000Z
+Framework • revision 6a19cca564 (9 weeks ago) • 2026-09-17 14:13:22 -0400
+Engine • hash ab598368592da0064197e2bc15c7f5b0a2c6bb1f (revision af7e796e16) (2 months ago) • 2026-09-16 18:35:09.000Z
 Tools • Dart 3.13.4 • DevTools 2.60.0
 
-## flutter analyze  (2026-10-26 11:07 -0300)
-Analyzing App_CollectExpress_Front_C_Flutter...                 
-No issues found! (ran in 5.1s)
+## flutter analyze  (2026-11-19 11:50 -0300)
+Analyzing App_CollectExpress_Front_C_Flutter...                                      
+No issues found! (ran in 2.4s)
 exit=0
 
-## flutter test --reporter expanded  (2026-10-26 11:07 -0300)
+## flutter test --reporter expanded  (2026-11-19 11:50 -0300)
 00:00 +0: loading test/core/models/models_test.dart
 00:00 +0: test/core/models/models_test.dart: Usuario do perfil, com DECIMAL vindo como texto
 00:00 +1: test/core/models/models_test.dart: Cacamba do detalhe, com fornecedor e avaliações
@@ -23,48 +23,76 @@ exit=0
 00:00 +7: test/core/models/models_test.dart: Endereco.toJson manda o CEP só com dígitos e omite bairro vazio
 00:00 +8: test/core/models/models_test.dart: formatApiDate
 00:00 +9: test/core/network/api_client_test.dart: respostas devolve o data do formato novo {success, data}
-00:00 +10: test/core/network/api_client_test.dart: respostas devolve o corpo inteiro no formato antigo
-00:00 +11: test/core/network/api_client_test.dart: erros lê o formato novo com code e fields
-00:00 +12: test/core/network/api_client_test.dart: erros lê {error} do formato antigo
-00:00 +13: test/core/network/api_client_test.dart: erros lê {errors: [{campo, mensagem}]} do formato antigo
-00:00 +14: test/core/network/api_client_test.dart: erros falha de rede vira mensagem amigável
-00:00 +15: test/core/network/api_client_test.dart: token envia o Bearer nas rotas autenticadas
-00:00 +16: test/core/network/api_client_test.dart: token não envia token quando auth = false
-00:00 +17: test/core/network/api_client_test.dart: renovação do token no 401 renova com o refresh token e repete a requisição
-00:00 +18: test/core/network/api_client_test.dart: renovação do token vários 401 ao mesmo tempo fazem uma única renovação
-00:00 +19: test/core/network/api_client_test.dart: renovação do token se a renovação falha, limpa a sessão e avisa
-00:00 +20: test/core/network/api_client_test.dart: renovação do token sem refresh token (API antiga), encerra a sessão sem chamar /auth/refresh
-00:00 +21: test/core/network/api_client_test.dart: renovação do token falha de rede ao renovar mantém a sessão
-00:00 +22: test/core/network/api_client_test.dart: renovação do token 401 no login (sem token) não tenta renovar
-00:00 +23: test/core/network/api_client_test.dart: requisições usam a URL base configurada
-00:00 +24: test/features/auth_repository_test.dart: login API nova: guarda access e refresh token
-00:00 +25: test/features/auth_repository_test.dart: login API antiga (main): só token
-00:00 +26: test/features/auth_repository_test.dart: login credenciais inválidas não guardam nada
-00:00 +27: test/features/auth_repository_test.dart: registrar fornecedor manda só dígitos e os detalhes
-00:00 +28: test/features/auth_repository_test.dart: cadastro de admin por convite explica que ainda não existe
-00:00 +29: test/features/auth_repository_test.dart: logout revoga na API e limpa os tokens
-00:00 +30: test/features/auth_repository_test.dart: logout limpa os tokens mesmo se a API estiver fora do ar
-00:00 +31: test/features/auth_repository_test.dart: sessaoProvider sem token salvo, começa deslogado
-00:00 +32: test/features/auth_repository_test.dart: sessaoProvider com token salvo, recupera o usuário pelo perfil
-00:00 +33: test/features/auth_repository_test.dart: sessaoProvider entrar e sair atualizam o estado
-00:00 +34: test/features/auth_repository_test.dart: sessaoProvider volta para deslogado quando a sessão expira
-00:01 +35: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +36: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +37: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +38: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +39: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +40: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +41: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:01 +42: test/features/login_page_test.dart: login: campos vazios mostram as mensagens e não chamam a API
-00:02 +43: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
-00:02 +44: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
-00:03 +45: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
-00:03 +46: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
-00:03 +47: test/features/login_page_test.dart: login: o botão de mostrar senha tem nome acessível
-00:03 +48: test/features/telas_catalogo_admin_test.dart: catálogo mostra o erro da API com "Tentar novamente"
-00:03 +49: test/features/telas_catalogo_admin_test.dart: detalhe da caçamba mostra os dados e o fornecedor
-00:03 +50: test/features/telas_catalogo_admin_test.dart: detalhe da caçamba sem login, adicionar ao carrinho abre o login
-00:03 +51: test/features/telas_catalogo_admin_test.dart: detalhe da caçamba logado, adiciona ao carrinho com quantidade e dias
-00:04 +52: test/features/telas_catalogo_admin_test.dart: painel do admin mostra as métricas e os pedidos recentes
-00:04 +53: All tests passed!
+00:00 +10: test/core/network/api_client_test.dart: respostas mantém a paginação que vem fora do data (GET /usuarios)
+00:00 +11: test/core/network/api_client_test.dart: respostas devolve o corpo inteiro no formato antigo
+00:00 +12: test/core/network/api_client_test.dart: erros lê o formato novo com code e fields
+00:00 +13: test/core/network/api_client_test.dart: erros lê {error} do formato antigo
+00:00 +14: test/core/network/api_client_test.dart: erros lê {errors: [{campo, mensagem}]} do formato antigo
+00:00 +15: test/core/network/api_client_test.dart: erros falha de rede vira mensagem amigável
+00:00 +16: test/core/services/cep_service_test.dart: devolve o endereço de um CEP válido
+00:00 +17: test/core/services/cep_service_test.dart: devolve o endereço de um CEP válido
+00:00 +18: test/core/services/cep_service_test.dart: devolve o endereço de um CEP válido
+00:00 +19: test/core/services/cep_service_test.dart: devolve o endereço de um CEP válido
+00:00 +20: test/core/network/api_client_test.dart: renovação do token vários 401 ao mesmo tempo fazem uma única renovação
+00:00 +21: test/core/network/api_client_test.dart: renovação do token vários 401 ao mesmo tempo fazem uma única renovação
+00:00 +22: test/core/network/api_client_test.dart: renovação do token vários 401 ao mesmo tempo fazem uma única renovação
+00:00 +23: test/core/services/cep_service_test.dart: CEP com menos de 8 dígitos nem consulta o ViaCEP
+00:00 +24: test/core/network/api_client_test.dart: renovação do token se a renovação falha, limpa a sessão e avisa
+00:00 +25: test/core/network/api_client_test.dart: renovação do token sem refresh token (API antiga), encerra a sessão sem chamar /auth/refresh
+00:00 +26: test/core/network/api_client_test.dart: renovação do token falha de rede ao renovar mantém a sessão
+00:00 +27: test/core/network/api_client_test.dart: renovação do token 401 no login (sem token) não tenta renovar
+00:00 +28: test/core/network/api_client_test.dart: requisições usam a URL base configurada
+00:00 +29: test/features/auth_repository_test.dart: login API nova: guarda access e refresh token
+00:00 +30: test/features/auth_repository_test.dart: login API antiga (main): só token
+00:00 +31: test/features/auth_repository_test.dart: login credenciais inválidas não guardam nada
+00:00 +32: test/features/auth_repository_test.dart: registrar fornecedor manda só dígitos e os detalhes
+00:00 +33: test/features/auth_repository_test.dart: cadastro de admin por convite explica que ainda não existe
+00:00 +34: test/features/auth_repository_test.dart: logout revoga na API e limpa os tokens
+00:00 +35: test/features/auth_repository_test.dart: logout limpa os tokens mesmo se a API estiver fora do ar
+00:00 +36: test/features/auth_repository_test.dart: sessaoProvider sem token salvo, começa deslogado
+00:00 +37: test/features/auth_repository_test.dart: sessaoProvider com token salvo, recupera o usuário pelo perfil
+00:00 +38: test/features/auth_repository_test.dart: sessaoProvider entrar e sair atualizam o estado
+00:00 +39: test/features/auth_repository_test.dart: sessaoProvider volta para deslogado quando a sessão expira
+00:01 +40: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +41: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +42: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +43: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +44: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +45: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +46: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +47: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:02 +48: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:03 +49: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:03 +50: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:03 +51: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +52: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +53: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +54: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +55: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +56: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +57: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +58: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +59: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +60: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +61: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +62: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:04 +63: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:05 +64: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:05 +65: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor envia os dados para a API e avisa que está em análise
+00:05 +66: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
+00:05 +67: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
+00:05 +68: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
+00:05 +69: test/features/telas_catalogo_admin_test.dart: catálogo mostra as caçambas da API e filtra por categoria
+00:05 +70: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor mostra no campo o erro que a API devolveu
+00:05 +71: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor mostra no campo o erro que a API devolveu
+00:06 +72: test/features/fluxo_fornecedor_test.dart: cadastro do fornecedor mostra no campo o erro que a API devolveu
+00:06 +73: test/widget_test.dart: exibe a tela inicial
+00:06 +74: test/widget_test.dart: exibe a tela inicial
+00:06 +75: test/widget_test.dart: exibe a tela inicial
+00:06 +76: test/widget_test.dart: exibe a tela inicial
+00:06 +77: test/features/telas_catalogo_admin_test.dart: painel do admin mostra as métricas e os pedidos recentes
+00:06 +78: test/features/fluxo_fornecedor_test.dart: gestão de usuários não oferece mudar o status de administradores
+00:06 +79: test/features/fluxo_fornecedor_test.dart: cadastro de caçamba sugere as categorias conhecidas e envia para a API
+00:07 +80: test/features/fluxo_fornecedor_test.dart: cadastro de caçamba mostra no campo a categoria recusada pela API
+00:07 +81: All tests passed!
 exit=0
