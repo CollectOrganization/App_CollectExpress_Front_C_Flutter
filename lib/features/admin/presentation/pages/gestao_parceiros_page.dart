@@ -191,6 +191,7 @@ class _GestaoParceirosPageState extends State<GestaoParceirosPage> {
                               suffixIcon: searchText.isEmpty
                                   ? null
                                   : IconButton(
+                                      tooltip: 'Limpar busca',
                                       onPressed: _clearSearch,
                                       icon: const Icon(Icons.close),
                                     ),
@@ -407,6 +408,7 @@ class _AdminHeader extends StatelessWidget {
           Builder(
             builder: (scaffoldContext) {
               return IconButton(
+                tooltip: 'Abrir menu',
                 onPressed: () {
                   Scaffold.of(scaffoldContext).openEndDrawer();
                 },

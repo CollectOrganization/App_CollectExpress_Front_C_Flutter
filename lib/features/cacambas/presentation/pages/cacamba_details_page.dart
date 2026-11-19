@@ -203,6 +203,7 @@ class _CacambaDetailsPageState extends ConsumerState<CacambaDetailsPage> {
           child: Row(
             children: [
               IconButton(
+                tooltip: 'Diminuir quantidade',
                 onPressed: quantity > 1
                     ? () => setState(() => quantity--)
                     : null,
@@ -220,6 +221,7 @@ class _CacambaDetailsPageState extends ConsumerState<CacambaDetailsPage> {
                 ),
               ),
               IconButton(
+                tooltip: 'Aumentar quantidade',
                 onPressed: quantity < _quantidadeMaxima
                     ? () => setState(() => quantity++)
                     : null,
