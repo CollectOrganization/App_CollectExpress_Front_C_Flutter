@@ -204,6 +204,7 @@ class _PageHeader extends StatelessWidget {
           Builder(
             builder: (context) {
               return IconButton(
+                tooltip: 'Abrir menu',
                 onPressed: () => Scaffold.of(context).openEndDrawer(),
                 style: IconButton.styleFrom(
                   backgroundColor: AppColors.lightGray,
@@ -386,6 +387,7 @@ class _Stepper extends StatelessWidget {
           child: Row(
             children: [
               IconButton(
+                tooltip: 'Diminuir ${titulo.replaceAll(':', '').toLowerCase()}',
                 onPressed: habilitado && valor > 1
                     ? () => onChanged(valor - 1)
                     : null,
@@ -401,6 +403,7 @@ class _Stepper extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Aumentar ${titulo.replaceAll(':', '').toLowerCase()}',
                 onPressed: habilitado && valor < maximo
                     ? () => onChanged(valor + 1)
                     : null,

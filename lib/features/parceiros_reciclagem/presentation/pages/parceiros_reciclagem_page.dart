@@ -227,6 +227,7 @@ class _PageHeader extends StatelessWidget {
           Builder(
             builder: (scaffoldContext) {
               return IconButton(
+                tooltip: 'Abrir menu',
                 onPressed: () {
                   Scaffold.of(scaffoldContext).openEndDrawer();
                 },

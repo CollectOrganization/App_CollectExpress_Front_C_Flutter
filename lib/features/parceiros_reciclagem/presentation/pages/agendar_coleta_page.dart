@@ -123,6 +123,7 @@ class _AgendarColetaPageState extends State<AgendarColetaPage> {
             child: Row(
               children: [
                 IconButton(
+                  tooltip: 'Diminuir 10 kg',
                   onPressed: quantityKg > 10
                       ? () {
                           setState(() {
@@ -146,6 +147,7 @@ class _AgendarColetaPageState extends State<AgendarColetaPage> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Aumentar 10 kg',
                   onPressed: () {
                     setState(() {
                       quantityKg += 10;
@@ -419,6 +421,7 @@ class _PageHeader extends StatelessWidget {
           Builder(
             builder: (scaffoldContext) {
               return IconButton(
+                tooltip: 'Abrir menu',
                 onPressed: () {
                   Scaffold.of(scaffoldContext).openEndDrawer();
                 },

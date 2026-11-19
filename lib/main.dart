@@ -170,6 +170,7 @@ class Header extends StatelessWidget {
               borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
             child: IconButton(
+              tooltip: 'Abrir menu',
               onPressed: () {
                 Scaffold.of(context).openEndDrawer();
               },
