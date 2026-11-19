@@ -7,6 +7,7 @@ import '../models/usuario.dart';
 import '../navigation/app_routes.dart';
 import '../theme/app_colors.dart';
 import 'app_logo.dart';
+import 'secao_acessibilidade.dart';
 
 class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
@@ -180,6 +181,8 @@ class AppMenuDrawer extends ConsumerWidget {
                         title: 'SAIR',
                         onTap: () => _sair(context, ref),
                       ),
+                    const Divider(color: Colors.black12),
+                    const SecaoAcessibilidade(),
                   ],
                 ),
               ),

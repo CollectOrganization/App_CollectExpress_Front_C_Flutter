@@ -41,6 +41,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   flutter_dotenv: ^6.0.1
   http: ^1.6.0
+  flutter_tts: ^4.2.5
     
 
 dev_dependencies:
