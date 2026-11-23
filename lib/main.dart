@@ -3,13 +3,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'core/models/usuario.dart';
 import 'core/theme/app_colors.dart';
-import 'features/auth/data/sessao_provider.dart';
 import 'core/widgets/app_menu_drawer.dart';
 import 'core/navigation/app_routes.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/esqueci_senha_page.dart';
+import 'core/models/usuario.dart';
+import 'features/auth/data/sessao_provider.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/cacambas/presentation/pages/cacambas_page.dart';
 import 'features/parceiros_reciclagem/presentation/pages/detalhes_material_page.dart';
