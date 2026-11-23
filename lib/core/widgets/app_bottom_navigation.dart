@@ -18,6 +18,17 @@ void _navigateToTab(
       .pushNamedAndRemoveUntil(routes[selectedIndex], (route) => false);
 }
 
+/// Última aba das barras do cliente e da reciclagem: leva cada perfil para
+/// a sua área. Sem login, a rota é `null` e a aba abre o login.
+(String, String?) _abaDaConta(TipoPerfil? perfil) {
+  return switch (perfil) {
+    TipoPerfil.cacambeiro => ('Painel', AppRoutes.supplierHome),
+    TipoPerfil.admin => ('Admin', AppRoutes.adminHome),
+    TipoPerfil.consumidor => ('Perfil', AppRoutes.customerProfile),
+    null => ('Perfil', null),
+  };
+}
+
 /// Barra das telas públicas e do cliente. As duas últimas abas levam cada
 /// perfil para a sua área: pedidos e perfil do cliente, gestão e painel do
 /// fornecedor ou do admin. Sem login, "Perfil" abre o login.
@@ -30,27 +41,12 @@ class CustomerBottomNavigation extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final perfil = ref.watch(sessaoProvider).value?.tipoPerfil;
 
-    final (labelGestao, rotaGestao, labelPainel, rotaPainel) = switch (perfil) {
-      TipoPerfil.cacambeiro => (
-        'Gestão',
-        AppRoutes.supplierOrders,
-        'Painel',
-        AppRoutes.supplierHome,
-      ),
-      TipoPerfil.admin => (
-        'Gestão',
-        AppRoutes.adminUsers,
-        'Admin',
-        AppRoutes.adminHome,
-      ),
-      TipoPerfil.consumidor => (
-        'Pedidos',
-        AppRoutes.customerOrders,
-        'Perfil',
-        AppRoutes.customerProfile,
-      ),
-      null => ('Pedidos', AppRoutes.customerOrders, 'Perfil', null),
+    final (labelGestao, rotaGestao) = switch (perfil) {
+      TipoPerfil.cacambeiro => ('Gestão', AppRoutes.supplierOrders),
+      TipoPerfil.admin => ('Gestão', AppRoutes.adminUsers),
+      TipoPerfil.consumidor || null => ('Pedidos', AppRoutes.customerOrders),
     };
+    final (labelPainel, rotaPainel) = _abaDaConta(perfil);
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
@@ -199,7 +195,9 @@ class PlatformAdminBottomNavigation extends StatelessWidget {
   }
 }
 
-class RecyclingBottomNavigation extends StatelessWidget {
+/// Barra das telas de reciclagem. A última aba é a mesma da barra do
+/// cliente: leva cada perfil para a sua área e, sem login, abre o login.
+class RecyclingBottomNavigation extends ConsumerWidget {
   final int currentIndex;
 
   const RecyclingBottomNavigation({super.key, required this.currentIndex});
@@ -208,39 +206,49 @@ class RecyclingBottomNavigation extends StatelessWidget {
     AppRoutes.recyclingMaterials,
     AppRoutes.recyclingPartners,
     AppRoutes.recyclingCollections,
-    AppRoutes.recyclingProfile,
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final perfil = ref.watch(sessaoProvider).value?.tipoPerfil;
+    final (labelConta, rotaConta) = _abaDaConta(perfil);
+
     return BottomNavigationBar(
       currentIndex: currentIndex,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: AppColors.green,
       unselectedItemColor: Colors.black54,
       onTap: (index) {
-        _navigateToTab(context, index, currentIndex, routes);
+        if (index == 3 && rotaConta == null) {
+          Navigator.of(context).pushNamed(AppRoutes.login);
+          return;
+        }
+
+        _navigateToTab(context, index, currentIndex, [
+          ...routes,
+          rotaConta ?? AppRoutes.login,
+        ]);
       },
-      items: const [
-        BottomNavigationBarItem(
+      items: [
+        const BottomNavigationBarItem(
           icon: Icon(Icons.recycling_outlined),
           activeIcon: Icon(Icons.recycling),
           label: 'Materiais',
         ),
-        BottomNavigationBarItem(
+        const BottomNavigationBarItem(
           icon: Icon(Icons.handshake_outlined),
           activeIcon: Icon(Icons.handshake),
           label: 'Parceiros',
         ),
-        BottomNavigationBarItem(
+        const BottomNavigationBarItem(
           icon: Icon(Icons.calendar_month_outlined),
           activeIcon: Icon(Icons.calendar_month),
           label: 'Coletas',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Perfil',
+          icon: const Icon(Icons.person_outline),
+          activeIcon: const Icon(Icons.person),
+          label: labelConta,
         ),
       ],
     );

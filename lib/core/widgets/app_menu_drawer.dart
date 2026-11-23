@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/data/sessao_provider.dart';
+import '../../features/pedidos/presentation/carrinho_provider.dart';
 import '../models/enums.dart';
 import '../models/usuario.dart';
 import '../navigation/app_routes.dart';
@@ -63,6 +64,19 @@ class AppMenuDrawer extends ConsumerWidget {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     final usuario = ref.watch(sessaoProvider).value;
     final isLoggedIn = usuario != null;
+    final inicio = AppRoutes.inicioDoPerfil(usuario?.tipoPerfil);
+
+    // Serviços e modelos são o catálogo do cliente. Fornecedor e admin
+    // têm as próprias telas e não alugam caçambas.
+    final mostraCatalogo =
+        !(usuario?.isCacambeiro ?? false) && !(usuario?.isAdmin ?? false);
+
+    // O carrinho fica salvo na API; o menu mostra quantas caçambas há nele
+    // para o cliente voltar e concluir o pedido.
+    final isConsumidor = usuario?.isConsumidor ?? false;
+    final itensNoCarrinho = isConsumidor
+        ? ref.watch(carrinhoProvider).value?.resumo.quantidadeItens ?? 0
+        : 0;
 
     return Drawer(
       width: screenWidth * 0.85,
@@ -78,9 +92,7 @@ class AppMenuDrawer extends ConsumerWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: AppLogo(
-                      onTap: () => _navigate(context, AppRoutes.home),
-                    ),
+                    child: AppLogo(onTap: () => _navigate(context, inicio)),
                   ),
                   IconButton(
                     tooltip: 'Fechar menu',
@@ -122,22 +134,31 @@ class AppMenuDrawer extends ConsumerWidget {
                     AppDrawerItem(
                       icon: Icons.home_outlined,
                       title: 'INÍCIO',
-                      selected: currentRoute == AppRoutes.home,
-                      onTap: () => _navigate(context, AppRoutes.home),
+                      selected: currentRoute == inicio,
+                      onTap: () => _navigate(context, inicio),
                     ),
-                    AppDrawerItem(
-                      icon: Icons.local_shipping_outlined,
-                      title: 'SERVIÇOS',
-                      selected: currentRoute == AppRoutes.services,
-                      onTap: () => _navigate(context, AppRoutes.services),
-                    ),
-                    AppDrawerItem(
-                      icon: Icons.grid_view_outlined,
-                      title: 'MODELOS',
-                      selected: currentRoute == AppRoutes.models,
-                      onTap: () => _navigate(context, AppRoutes.models),
-                    ),
-                    if (usuario?.isConsumidor ?? false)
+                    if (mostraCatalogo) ...[
+                      AppDrawerItem(
+                        icon: Icons.local_shipping_outlined,
+                        title: 'SERVIÇOS',
+                        selected: currentRoute == AppRoutes.services,
+                        onTap: () => _navigate(context, AppRoutes.services),
+                      ),
+                      AppDrawerItem(
+                        icon: Icons.grid_view_outlined,
+                        title: 'MODELOS',
+                        selected: currentRoute == AppRoutes.models,
+                        onTap: () => _navigate(context, AppRoutes.models),
+                      ),
+                    ],
+                    if (isConsumidor) ...[
+                      AppDrawerItem(
+                        icon: Icons.shopping_cart_outlined,
+                        title: 'MEU CARRINHO',
+                        contador: itensNoCarrinho,
+                        selected: currentRoute == AppRoutes.cart,
+                        onTap: () => _navigate(context, AppRoutes.cart),
+                      ),
                       AppDrawerItem(
                         icon: Icons.receipt_long_outlined,
                         title: 'MEUS PEDIDOS',
@@ -145,6 +166,7 @@ class AppMenuDrawer extends ConsumerWidget {
                         onTap: () =>
                             _navigate(context, AppRoutes.customerOrders),
                       ),
+                    ],
                     if (usuario?.isCacambeiro ?? false) ...[
                       AppDrawerItem(
                         icon: Icons.storefront_outlined,
@@ -284,12 +306,16 @@ class AppDrawerItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Número ao lado do título (ex.: itens no carrinho). Zero não aparece.
+  final int contador;
+
   const AppDrawerItem({
     super.key,
     required this.icon,
     required this.title,
     required this.onTap,
     this.selected = false,
+    this.contador = 0,
   });
 
   @override
@@ -324,6 +350,26 @@ class AppDrawerItem extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (contador > 0)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.green,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$contador',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 Icon(Icons.chevron_right, color: color, size: 20),
               ],
             ),
@@ -377,27 +423,28 @@ class AppDrawerFooter extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-          ],
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton(
-              onPressed: onAbout,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black,
-                overlayColor: AppColors.green.withValues(alpha: 0.09),
-                side: const BorderSide(color: Colors.black, width: 1.3),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
+            // "Saiba mais" apresenta o app para quem ainda não tem conta.
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: onAbout,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black,
+                  overlayColor: AppColors.green.withValues(alpha: 0.09),
+                  side: const BorderSide(color: Colors.black, width: 1.3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                child: const Text(
+                  'SAIBA MAIS',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                 ),
               ),
-              child: const Text(
-                'SAIBA MAIS',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
+          ],
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(11),
