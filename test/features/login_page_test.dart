@@ -1,7 +1,7 @@
 import 'package:app_collect_express_with_flutter/core/network/api_client.dart';
 import 'package:app_collect_express_with_flutter/core/network/api_providers.dart';
 import 'package:app_collect_express_with_flutter/features/auth/presentation/pages/login_page.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

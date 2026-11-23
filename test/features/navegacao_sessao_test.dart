@@ -6,7 +6,7 @@ import 'package:app_collect_express_with_flutter/core/widgets/app_logo.dart';
 import 'package:app_collect_express_with_flutter/core/widgets/app_menu_drawer.dart';
 import 'package:app_collect_express_with_flutter/features/pedidos/presentation/pages/meus_pedidos_page.dart';
 import 'package:dio/dio.dart' show RequestOptions;
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

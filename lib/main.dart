@@ -1,11 +1,10 @@
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_menu_drawer.dart';
-import 'core/widgets/responsive_content.dart';
 import 'core/navigation/app_routes.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/esqueci_senha_page.dart';
@@ -75,8 +74,6 @@ class CollectApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      builder: (context, child) =>
-          ResponsiveContent(child: child ?? const SizedBox.shrink()),
       initialRoute: AppRoutes.home,
       routes: {
         // Cliente
@@ -125,7 +122,7 @@ class CollectApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
         scaffoldBackgroundColor: Colors.white,
-        fontFamily: GoogleFonts.poppins().fontFamily,
+        textTheme: GoogleFonts.poppinsTextTheme(),
       ),
     );
   }

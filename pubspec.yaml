@@ -43,7 +43,6 @@ dependencies:
   http: ^1.6.0
     
 
-  material_ui: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,7 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:material_ui/material_ui.dart';
-
-import '../responsive/app_breakpoints.dart';
+import 'package:flutter/material.dart';
 
 class ResponsiveContent extends StatelessWidget {
   final Widget child;
@@ -17,25 +14,11 @@ class ResponsiveContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!kIsWeb) return child;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportWidth = constraints.maxWidth;
-        if (viewportWidth < AppBreakpoints.mobile) return child;
-
-        return Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: AppBreakpoints.contentMaxWidthFor(
-                viewportWidth,
-                maxWidth: maxWidth,
-              ),
-            ),
-            child: Padding(padding: padding, child: child),
-          ),
-        );
-      },
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(padding: padding, child: child),
+      ),
     );
   }
 }

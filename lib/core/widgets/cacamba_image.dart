@@ -1,4 +1,4 @@
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/material.dart';
 
 /// Foto da caçamba vinda da API. Sem foto, ou se ela não carregar, usa a
 /// imagem local mais próxima do tamanho.
