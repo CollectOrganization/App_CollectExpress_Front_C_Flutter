@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_colors.dart';
 import 'core/widgets/app_menu_drawer.dart';
+import 'core/widgets/responsive_content.dart';
 import 'core/navigation/app_routes.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
 import 'features/auth/presentation/pages/esqueci_senha_page.dart';
@@ -74,6 +75,9 @@ class CollectApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => ResponsiveAppLayout(
+        child: child ?? const SizedBox.shrink(),
+      ),
       initialRoute: AppRoutes.home,
       routes: {
         // Cliente
