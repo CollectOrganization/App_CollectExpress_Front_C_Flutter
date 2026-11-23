@@ -3,10 +3,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'core/models/usuario.dart';
 import 'core/theme/app_colors.dart';
+import 'features/auth/data/sessao_provider.dart';
 import 'core/widgets/app_menu_drawer.dart';
 import 'core/navigation/app_routes.dart';
 import 'features/auth/presentation/pages/cadastro_page.dart';
+import 'features/auth/presentation/pages/esqueci_senha_page.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/cacambas/presentation/pages/cacambas_page.dart';
 import 'features/parceiros_reciclagem/presentation/pages/detalhes_material_page.dart';
@@ -78,11 +81,13 @@ class CollectApp extends StatelessWidget {
         AppRoutes.services: (_) => const CacambasPage(),
         AppRoutes.models: (_) => const DetalhesMaterialPage(),
         AppRoutes.customerOrders: (_) => const MeusPedidosPage(),
+        AppRoutes.cart: (_) => const ResumoPedidoPage(),
         AppRoutes.customerProfile: (_) => const PerfilClientePage(),
 
         // Autenticação
         AppRoutes.login: (_) => const LoginPage(),
         AppRoutes.register: (_) => const CadastroPage(),
+        AppRoutes.forgotPassword: (_) => const EsqueciSenhaPage(),
         AppRoutes.about: (_) => const SaibaMaisPage(),
         AppRoutes.adminLogin: (_) => const AdminLoginPage(),
         AppRoutes.adminRegister: (_) => const AdminRegisterPage(),
@@ -104,7 +109,6 @@ class CollectApp extends StatelessWidget {
         AppRoutes.recyclingMaterials: (_) => const DetalhesMaterialPage(),
         AppRoutes.recyclingPartners: (_) => const ParceirosReciclagemPage(),
         AppRoutes.recyclingCollections: (_) => const ColetasAgendadasPage(),
-        AppRoutes.recyclingProfile: (_) => const LoginPage(),
 
         // Rotas legadas para compatibilidade
         // ('/login' e '/cadastro' já são AppRoutes.login e AppRoutes.register)
@@ -124,8 +128,46 @@ class CollectApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+/// Página inicial do cliente e de quem não entrou.
+///
+/// O app sempre abre aqui. Se a sessão salva for de fornecedor ou admin,
+/// leva para o painel deles assim que a API confirmar o perfil.
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
+
+  @override
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  bool _redirecionou = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      sessaoProvider,
+      (_, sessao) => _irParaOInicioDoPerfil(sessao.value),
+      fireImmediately: true,
+    );
+  }
+
+  void _irParaOInicioDoPerfil(Usuario? usuario) {
+    final inicio = AppRoutes.inicioDoPerfil(usuario?.tipoPerfil);
+    if (inicio == AppRoutes.home || _redirecionou) return;
+
+    // Navegar só depois do frame: pode ser chamado durante o initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _redirecionou) return;
+
+      // Só se esta tela estiver à frente: uma tela aberta por cima (ex.:
+      // link direto para /admin/usuarios na web) não é trocada.
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+
+      _redirecionou = true;
+      Navigator.of(context).pushNamedAndRemoveUntil(inicio, (_) => false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
