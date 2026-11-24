@@ -68,7 +68,7 @@ void main() {
     expect(carrinho.resumo.totalEstimado, 640);
   });
 
-  test('checkout manda a data como YYYY-MM-DD', () async {
+  test('checkout manda a data como YYYY-MM-DD e o aceite assinado', () async {
     final fake = apiRespondendo({
       'id': 'p1',
       'preco_final': '640.00',
@@ -76,11 +76,17 @@ void main() {
     });
 
     final pedido = await PedidosRepository(fake.api)
-        .checkout(enderecoId: 'e1', dataInicio: DateTime(2026, 11, 3, 14, 30));
+        .checkout(
+          enderecoId: 'e1',
+          dataInicio: DateTime(2026, 11, 3, 14, 30),
+          assinaturaBase64: 'iVBORw0KGgo=',
+        );
 
     expect(sentBody(unica(fake.adapter)), {
       'endereco_id': 'e1',
       'data_inicio': '2026-11-03',
+      'aceite_termos': true,
+      'assinatura_base64': 'iVBORw0KGgo=',
     });
     expect(pedido.precoFinal, 640);
     expect(pedido.statusAluguel, StatusAluguel.aguardandoEntrega);

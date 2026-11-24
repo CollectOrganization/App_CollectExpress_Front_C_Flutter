@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +16,7 @@ import '../../../perfil/data/enderecos_repository.dart';
 import '../../data/pedidos_repository.dart';
 import '../carrinho_provider.dart';
 import '../pedidos_format.dart';
+import '../widgets/assinatura_sheet.dart';
 import '../widgets/novo_endereco_sheet.dart';
 import '../widgets/resumo_valores_card.dart';
 
@@ -59,6 +62,10 @@ class _AgendarEntregaPageState extends ConsumerState<AgendarEntregaPage> {
   String? _enderecoId;
   DateTime? _dataInicio;
   bool _enviando = false;
+
+  /// PNG (base64) da assinatura desenhada no modal. Preenchido = termos
+  /// aceitos; o checkbox só fica marcado depois de assinar.
+  String? _assinaturaBase64;
 
   @override
   void initState() {
@@ -141,7 +148,9 @@ class _AgendarEntregaPageState extends ConsumerState<AgendarEntregaPage> {
                       onRetry: () => ref.invalidate(carrinhoProvider),
                       data: _buildValores,
                     ),
-                    const SizedBox(height: 34),
+                    const SizedBox(height: 28),
+                    _buildAceiteTermos(),
+                    const SizedBox(height: 22),
                     SizedBox(
                       width: double.infinity,
                       height: 58,
@@ -395,6 +404,87 @@ class _AgendarEntregaPageState extends ConsumerState<AgendarEntregaPage> {
     return ResumoValoresCard(resumo: carrinho.resumo);
   }
 
+  /// Checkbox de aceite dos termos. Marcar abre o modal de assinatura; só
+  /// fica marcado se o cliente assinar. Desmarcar descarta a assinatura.
+  Widget _buildAceiteTermos() {
+    final assinatura = _assinaturaBase64;
+    final assinado = assinatura != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(4, 6, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CheckboxListTile(
+            value: assinado,
+            onChanged: _enviando ? null : _alternarAceite,
+            controlAffinity: ListTileControlAffinity.leading,
+            activeColor: AppColors.green,
+            contentPadding: const EdgeInsets.only(right: 4),
+            title: const Text(
+              'Li e aceito os termos e condições do contrato de locação',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text(
+              'Ao marcar, você assina o contrato, que será enviado por '
+              'e-mail para você e para o caçambeiro.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ),
+          if (assinatura != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 120,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.black26),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.memory(
+                      base64Decode(assinatura),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _enviando ? null : _assinar,
+                    child: const Text('Refazer assinatura'),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _alternarAceite(bool? marcado) {
+    if (marcado == true) {
+      _assinar();
+    } else {
+      setState(() => _assinaturaBase64 = null);
+    }
+  }
+
+  Future<void> _assinar() async {
+    final assinatura = await mostrarAssinaturaSheet(context);
+
+    // Cancelar mantém o estado anterior: sem assinatura, o checkbox
+    // continua desmarcado.
+    if (assinatura == null || !mounted) return;
+
+    setState(() => _assinaturaBase64 = assinatura);
+  }
+
   Future<void> _novoEndereco() async {
     final endereco = await mostrarNovoEnderecoSheet(context);
     if (endereco == null || !mounted) return;
@@ -419,12 +509,27 @@ class _AgendarEntregaPageState extends ConsumerState<AgendarEntregaPage> {
       return;
     }
 
+    final assinatura = _assinaturaBase64;
+
+    if (assinatura == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aceite os termos e assine o contrato para continuar.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _enviando = true);
 
     try {
       final pedido = await ref
           .read(pedidosRepositoryProvider)
-          .checkout(enderecoId: endereco.id, dataInicio: dataInicio);
+          .checkout(
+            enderecoId: endereco.id,
+            dataInicio: dataInicio,
+            assinaturaBase64: assinatura,
+          );
 
       if (!mounted) return;
 

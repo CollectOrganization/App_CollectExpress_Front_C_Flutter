@@ -22,15 +22,22 @@ class PedidosRepository {
   /// [dataInicio] deve estar entre 1 e 60 dias a partir de hoje.
   ///
   /// A resposta não traz os itens; use [detalhe] para vê-los.
+  ///
+  /// [assinaturaBase64] é o PNG da assinatura desenhada pelo cliente (base64,
+  /// sem prefixo `data:`). Junto com o aceite dos termos, a API usa a imagem
+  /// para gerar o contrato em PDF e enviá-lo ao cliente e ao caçambeiro.
   Future<Aluguel> checkout({
     required String enderecoId,
     required DateTime dataInicio,
+    required String assinaturaBase64,
   }) async {
     final data = await _api.post(
       '/alugueis/checkout',
       data: {
         'endereco_id': enderecoId,
         'data_inicio': formatApiDate(dataInicio),
+        'aceite_termos': true,
+        'assinatura_base64': assinaturaBase64,
       },
     );
 
