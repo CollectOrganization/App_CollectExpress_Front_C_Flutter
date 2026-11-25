@@ -78,8 +78,8 @@ Outros pontos de projeto:
 
 | Item | Uso |
 |---|---|
-| **Claude Opus 5.5** (`claude-opus-5-5`), da Anthropic | LLM das classificações e do parecer. Esforço `low` (é classificação de texto curto), saída estruturada por JSON Schema e *fallback* do lado do servidor (se o modelo recusar por engano, a própria API tenta outro). O modelo pode ser trocado pela variável `ANALISE_CNPJ_MODELO`. |
-| **SDK oficial `@anthropic-ai/sdk`** (Node.js, versão 1.14) | Chamada ao modelo (`client.beta.messages.create`) e erros tipados (chave inválida, limite de uso, falha de conexão). |
+| **gpt-oss-120b** (`openai/gpt-oss-120b`), modelo de pesos abertos da OpenAI (licença Apache 2.0) | LLM das classificações e do parecer. Temperatura 0, raciocínio `low` (é classificação de texto curto) e saída estruturada com JSON Schema em modo estrito (`strict: true`), que limita a resposta aos campos e rótulos do schema. O modelo pode ser trocado pela variável `ANALISE_CNPJ_MODELO`. |
+| **Groq**, rota `POST /openai/v1/chat/completions` (plano gratuito) | Hospeda o modelo. A API segue o formato de chat da OpenAI e é chamada com o `fetch` do próprio Node, sem SDK. Escolhemos a Groq pelo plano gratuito e pela velocidade (de 1,4 s a 1,8 s por análise nos testes reais). |
 | **BrasilAPI**, rota `GET /api/cnpj/v1/{cnpj}` | Dados abertos do CNPJ na Receita Federal: razão social, nome fantasia, situação cadastral, data de abertura e CNAE principal e secundários. Gratuita e sem chave. |
 | **Minha Receita** (`minhareceita.org`) | Reserva com o mesmo formato, usada quando a BrasilAPI falha. |
 | Node.js 24, Express 5, PostgreSQL (Neon) | API REST. A análise fica salva em `analises_cnpj`, numa coluna JSONB. |
@@ -99,7 +99,8 @@ Outros pontos de projeto:
 | | `INSTRUCOES` | **Prompt de sistema** com as tarefas e a definição dos rótulos. |
 | | `ESQUEMA_RESPOSTA` | **JSON Schema** da resposta do LLM. |
 | | `montarMensagem` | Monta a mensagem com o perfil, o nome digitado e os dados delimitados. |
-| | `analisarTextoComIa` | **A chamada ao LLM**: parâmetros, tratamento de recusa e de resposta cortada, leitura e validação do JSON. |
+| | `analisarTextoComIa` | **A chamada ao LLM**: parâmetros (modelo, temperatura, schema), tratamento de resposta cortada e de recusa, leitura e validação do JSON. |
+| | `chamarGroqPorHttp` | Envia o pedido à Groq com a chave e traduz os erros (sem chave, chave inválida, limite do plano gratuito, resposta fora do schema) em motivos que aparecem na tela. |
 | | `analisarCnpj` | Orquestra o pipeline, aplica os pesos (`PESOS`), calcula a nota e monta a resposta. |
 | | `recomendar` | Regra que transforma nota e rótulos em aprovar, revisar ou recusar. |
 | | `gerarESalvarAnalise` / `agendarAnaliseDoCadastro` | Salva no banco. Dispara a análise em segundo plano logo depois do cadastro. |
@@ -107,7 +108,7 @@ Outros pontos de projeto:
 | `src/routes/usuariosRoutes.js` | rotas `/:id/analise-cnpj` | Registro das rotas com autenticação e perfil ADMIN. |
 | `src/controllers/authController.js` | `register` | Chama `agendarAnaliseDoCadastro` quando o cadastro fica pendente. |
 | `src/scripts/analiseCnpjMigration.js` | | Cria a tabela `analises_cnpj` (`npm run migrate:analise-cnpj`). |
-| `test/analiseCnpjService.test.js`, `test/analiseCnpjController.test.js` | | 23 testes: caçambeira ativa, padaria, nome que não confere, CNPJ inválido, inexistente e baixado, fonte reserva, falta de chave, resposta fora do formato. |
+| `test/analiseCnpjService.test.js`, `test/analiseCnpjController.test.js` | | 29 testes: caçambeira ativa, padaria, nome que não confere, CNPJ inválido, inexistente e baixado, fonte reserva, falta de chave, erros da Groq (chave inválida, limite, fora do schema, fora do ar), resposta cortada e fora do formato. |
 
 ### App (repositório App_CollectExpress_Front_C_Flutter)
 
@@ -121,125 +122,168 @@ Outros pontos de projeto:
 
 ## 5. Exemplos de entrada e saída
 
-### 5.1 Empresa de caçambas ativa (fluxo completo)
+### 5.1 Empresa de caçambas ativa (execução real)
 
-Dados fictícios, os mesmos do teste automatizado. A mensagem abaixo é a que o código monta de verdade (saída de `montarMensagem`). A resposta do LLM do item 3 é a resposta simulada do teste, usada aqui para mostrar o formato.
+Execução real em 25/11/2026, com dados públicos da Receita Federal: consulta à BrasilAPI e chamada à Groq com o modelo `openai/gpt-oss-120b`. A análise inteira levou 1,8 s, e a chamada ao LLM usou 1.130 tokens de entrada e 563 de saída. Os textos abaixo foram copiados da execução, sem edição.
 
-**1. Entrada do administrador:** cadastro pendente de "JR Caçambas", CNPJ 11.222.333/0001-81.
+**1. Entrada do administrador:** cadastro pendente de "CM Caçambas", CNPJ 17.223.825/0001-78 (CM Locações de Caçambas Ltda, de Sinop, MT).
 
-**2. Mensagem enviada ao LLM**, junto com o prompt de sistema `INSTRUCOES`:
+**2. Mensagem enviada ao LLM** (saída de `montarMensagem`), junto com o prompt de sistema `INSTRUCOES`:
 
 ```text
 Perfil do cadastro: fornecedor de caçambas, que aluga caçambas estacionárias para entulho e resíduos de construção, entrega e retira as caçambas com caminhão e leva os resíduos para a destinação.
-Nome digitado no cadastro: "JR Caçambas"
+Nome digitado no cadastro: "CM Caçambas"
 
 <dados_cnpj>
 {
-  "razao_social": "JR LOCACAO DE CACAMBAS LTDA",
-  "nome_fantasia": "JR CACAMBAS",
+  "razao_social": "CM LOCACOES DE CACAMBAS LTDA",
+  "nome_fantasia": "ALO ENTULHO",
   "situacao_cadastral": "ATIVA",
-  "data_inicio_atividade": "2019-03-10",
-  "cnae_principal": { "codigo": "3811-4/00", "descricao": "Coleta de resíduos não-perigosos" },
+  "motivo_situacao": "SEM MOTIVO",
+  "data_inicio_atividade": "2012-11-28",
+  "cnae_principal": {
+    "codigo": "3811-4/00",
+    "descricao": "Coleta de resíduos não-perigosos"
+  },
   "cnaes_secundarios": [
-    { "codigo": "7732-2/01", "descricao": "Aluguel de máquinas e equipamentos para construção sem operador, exceto andaimes" }
+    {
+      "codigo": "4930-2/01",
+      "descricao": "Transporte rodoviário de carga, exceto produtos perigosos e mudanças, municipal."
+    },
+    {
+      "codigo": "7739-0/99",
+      "descricao": "Aluguel de outras máquinas e equipamentos comerciais e industriais não especificados anteriormente, sem operador"
+    }
   ],
   "natureza_juridica": "Sociedade Empresária Limitada",
-  "porte": "MICRO EMPRESA",
-  "municipio": "SAO PAULO",
-  "uf": "SP",
+  "porte": "EMPRESA DE PEQUENO PORTE",
+  "municipio": "SINOP",
+  "uf": "MT",
   "opcao_pelo_mei": false
 }
 </dados_cnpj>
 
 Checagens automáticas já feitas:
 - Situação cadastral: ATIVA
-- Tempo de abertura: Aberta há 7 anos
+- Tempo de abertura: Aberta há 13 anos
 ```
 
-O sócio (JOSE ROBERTO DA SILVA) e o e-mail que vieram da Receita não aparecem: foram descartados antes.
+O quadro de sócios, o e-mail e o telefone que a BrasilAPI devolveu não aparecem: foram descartados antes.
 
-**3. Saída do LLM** (JSON validado pelo schema):
+**3. Saída do LLM** (JSON no formato do schema):
 
 ```json
 {
   "atividade": {
     "classificacao": "PRINCIPAL_COMPATIVEL",
-    "cnaes_compativeis": ["3811-4/00", "7732-2/01"],
-    "justificativa": "Coleta de resíduos não perigosos é o serviço de quem retira entulho em caçambas, e o aluguel de equipamentos para construção cobre a locação da caçamba."
+    "cnaes_compativeis": ["3811-4/00"],
+    "justificativa": "O CNAE principal 3811-4/00 (Coleta de resíduos não-perigosos) está alinhado ao serviço de locação e transporte de caçambas para entulho."
   },
   "nome": {
     "classificacao": "CONSISTENTE",
-    "justificativa": "\"JR Caçambas\" corresponde ao nome fantasia JR CACAMBAS; a diferença é só de acento e caixa."
+    "justificativa": "O nome digitado \"CM Caçambas\" corresponde à razão social \"CM LOCACOES DE CACAMBAS LTDA\", mantendo a sigla \"CM\" e a referência a caçambas; a diferença está apenas na presença da palavra \"LOCACOES\"."
   },
-  "pontos_de_atencao": ["Conferir se a empresa tem licença para transportar resíduos da construção civil."],
-  "parecer": "A empresa está ativa há 7 anos e tem como atividade principal a coleta de resíduos não perigosos, compatível com a locação de caçambas. O nome informado bate com o nome fantasia registrado na Receita. Vale conferir a licença de transporte de resíduos antes da aprovação."
+  "pontos_de_atencao": [
+    "Verificar se a empresa possui frota de caçambas estacionárias para atender ao perfil de fornecedor.",
+    "Confirmar se o nome fantasia \"ALO ENTULHO\" está relacionado ao mesmo negócio ou se indica outra atividade.",
+    "Checar se o CNAE secundário 7739-0/99 (Aluguel de máquinas e equipamentos) cobre especificamente caçambas sem operador.",
+    "Validar a regularidade fiscal e tributária além da situação cadastral ativa."
+  ],
+  "parecer": "A atividade principal da empresa é compatível com o fornecimento de caçambas, e o nome cadastrado apresenta correspondência clara com a razão social. Apesar do nome fantasia diferente, não há indícios de divergência grave. Recomenda-se confirmar a existência da frota e a relação do nome fantasia antes de concluir o cadastro."
 }
 ```
 
-**4. Saída da API para o app** (resumida; gerada pelo código a partir da resposta acima):
+O modelo entendeu que "Coleta de resíduos não-perigosos" serve para quem aluga caçamba, embora a descrição não tenha essa palavra. Também ligou "CM Caçambas" a "CM LOCACOES DE CACAMBAS LTDA" sem que os textos fossem iguais.
+
+**4. Saída da API para o app** (resumida; a nota e a recomendação são calculadas pelo código a partir dos rótulos acima):
 
 ```json
 {
-  "cnpj": "**.***.333/0001-81",
+  "cnpj": "**.***.825/0001-78",
   "nota": 10,
   "recomendacao": "APROVAR",
   "resumo": "Dados conferem com o perfil.",
   "checagens": [
     { "item": "Situação cadastral", "resultado": "ATIVA", "pontos": 35, "maximo": 35 },
-    { "item": "Tempo de abertura", "resultado": "Aberta há 7 anos", "pontos": 15, "maximo": 15 },
+    { "item": "Tempo de abertura", "resultado": "Aberta há 13 anos", "pontos": 15, "maximo": 15 },
     { "item": "Atividade compatível (IA)", "resultado": "Atividade principal compatível", "pontos": 40, "maximo": 40 },
     { "item": "Nome confere com a Receita (IA)", "resultado": "Nome confere", "pontos": 10, "maximo": 10 }
   ],
-  "parecer": "A empresa está ativa há 7 anos e tem como atividade principal ...",
+  "parecer": "A atividade principal da empresa é compatível com o fornecimento de caçambas, ...",
   "fonte": "BrasilAPI",
-  "ia": { "usada": true, "modelo": "claude-opus-5-5" }
+  "ia": { "usada": true, "modelo": "openai/gpt-oss-120b" }
 }
 ```
 
-### 5.2 Outros casos (cobertos pelos testes automatizados)
+### 5.2 Outros casos
+
+Os dois primeiros são execuções reais; os demais são cobertos pelos testes automatizados.
 
 | Entrada | O que acontece | Nota | Recomendação |
 |---|---|---|---|
-| Empresa de caçambas ativa há 7 anos, nome confere | Fluxo completo do item 5.1 | 10 | Aprovar |
+| Empresa de caçambas ativa há 13 anos, nome confere (real) | Fluxo completo do item 5.1 | 10 | Aprovar |
+| Banco do Brasil se cadastrando como caçambeiro (real) | LLM classifica "Bancos múltiplos, com carteira comercial" como `INCOMPATIVEL` e o nome como `CONSISTENTE` (item 5.3) | 6 | Recusar |
 | Padaria ativa se cadastrando como caçambeiro | LLM classifica a atividade como `INCOMPATIVEL` ("Fabricação de produtos de padaria...") | 5 | Recusar |
 | Caçambeira ativa, mas nome digitado de outra empresa | LLM classifica o nome como `INCONSISTENTE` | 9 | Revisar |
 | Caçambeira aberta há 2 meses | Perde os pontos de tempo e ganha o alerta "ainda não tem histórico" | 8,5 | Aprovar |
 | CNPJ com situação BAIXADA | Reprovado pela regra, **sem chamar o LLM** | 0 | Recusar |
 | CNPJ com dígito verificador errado | Reprovado sem consultar a Receita nem o LLM | 0 | Recusar |
 | CNPJ que não existe na Receita | Reprovado pela regra | 0 | Recusar |
-| API sem chave do LLM configurada | Só as regras rodam. Sem nota, a tela pede conferência manual da atividade e mostra o motivo. | – | Revisar |
+| API sem `GROQ_API_KEY` configurada | Só as regras rodam. Sem nota, a tela pede conferência manual da atividade e mostra o motivo. | – | Revisar |
+| Limite do plano gratuito da Groq atingido | Igual ao caso sem chave, com o motivo "Limite do plano gratuito da Groq atingido". | – | Revisar |
 
-### 5.3 Consulta real à Receita (modo sem IA)
+### 5.3 O mesmo CNPJ com e sem o LLM (execução real)
 
-Consulta real à BrasilAPI com um CNPJ público (Banco do Brasil, 00.000.000/0001-91) e a chave do LLM desligada:
+Banco do Brasil (CNPJ público 00.000.000/0001-91) cadastrado como fornecedor de caçambas.
+
+**Só com as regras** (sem `GROQ_API_KEY`):
 
 ```json
 {
   "nota": null,
   "recomendacao": "REVISAR",
   "resumo": "Empresa ativa. Falta conferir a atividade.",
-  "fonte": "BrasilAPI",
   "checagens": [
     { "item": "Situação cadastral", "resultado": "ATIVA", "pontos": 35, "maximo": 35 },
     { "item": "Tempo de abertura", "resultado": "Aberta há 60 anos", "pontos": 15, "maximo": 15 }
   ],
-  "ia": { "usada": false, "motivo": "IA não configurada: defina ANTHROPIC_API_KEY no .env da API." }
+  "ia": { "usada": false, "motivo": "IA não configurada: defina GROQ_API_KEY no .env da API." }
 }
 ```
 
-Esse caso mostra por que o LLM é necessário. As regras confirmam que o CNPJ existe e está ativo, mas não conseguem dizer que "Bancos múltiplos, com carteira comercial" não tem nada a ver com caçambas. Com o LLM ligado, essa atividade cai em `INCOMPATIVEL`.
+**Com o LLM** (1,4 s; 1.076 tokens de entrada e 439 de saída):
+
+```json
+{
+  "nota": 6,
+  "recomendacao": "REPROVAR",
+  "resumo": "A atividade da empresa não combina com o perfil.",
+  "atividade": {
+    "classificacao": "INCOMPATIVEL",
+    "cnaes_compativeis": [],
+    "justificativa": "Nenhum dos códigos CNAE (6422-1/00 – bancos múltiplos e 6499-9/99 – outros serviços financeiros) está relacionado a locação ou transporte de caçambas ou à destinação de resíduos."
+  },
+  "nome": {
+    "classificacao": "CONSISTENTE",
+    "justificativa": "O nome digitado corresponde exatamente à razão social \"BANCO DO BRASIL SA\", apenas omitindo a sigla societária."
+  },
+  "parecer": "A atividade econômica declarada pelo CNPJ não é compatível com o perfil de fornecedor de caçambas. O nome está consistente com a razão social. Recomenda-se confirmar a real prestação de serviços de locação de caçambas antes de prosseguir."
+}
+```
+
+Esse caso mostra por que o LLM é necessário. As regras confirmam que o CNPJ existe e está ativo, mas não conseguem dizer que um banco não aluga caçambas. A nota 6 vem dos pontos de situação, tempo e nome; a recomendação é recusar porque a atividade é incompatível, independentemente da nota.
 
 ## 6. Limitações e possíveis melhorias
 
 ### Limitações
 
-- **Não medimos a acurácia.** Não montamos um conjunto de CNPJs rotulados à mão, então não temos precisão e revocação das classificações do LLM. Os testes automatizados conferem o pipeline com respostas simuladas, e não a qualidade do modelo.
-- **O LLM não é determinístico** e pode errar em casos de fronteira. Exemplo: "Transporte rodoviário de carga" serve ou não para um caçambeiro? Os pesos fixos e a decisão humana limitam o impacto, mas não eliminam o erro.
+- **Não medimos a acurácia.** Não montamos um conjunto de CNPJs rotulados à mão, então não temos precisão e revocação das classificações do LLM. Os testes automatizados conferem o pipeline com respostas simuladas, e não a qualidade do modelo. As execuções reais do item 5 são exemplos, não uma medição.
+- **O LLM erra em casos de fronteira e não é totalmente determinístico.** Mesmo com temperatura 0, duas execuções iguais podem trazer textos diferentes. No caso real do item 5.1, o modelo não marcou como compatíveis o 7739-0/99 ("Aluguel de outras máquinas e equipamentos... sem operador"), onde muitas empresas registram a locação de caçambas, nem o 4930-2/01 (transporte rodoviário de carga municipal); só levantou a dúvida nos pontos de atenção. A nota não mudou porque o CNAE principal já era compatível, mas numa empresa em que só esses CNAEs servissem, a atividade sairia como incompatível. Os pesos fixos e a decisão humana limitam o impacto, mas não eliminam o erro.
 - **O CNAE é autodeclarado.** Uma empresa pode ter o CNAE certo sem operar caçambas, ou operar com o CNAE errado. A análise não confere licença ambiental, alvará, controle de transporte de resíduos (CTR), frota nem reclamações de clientes.
-- **Dependência de serviços externos.** A BrasilAPI e a Minha Receita são gratuitas e sem garantia de disponibilidade. A base da Receita tem defasagem de atualização. O LLM é um serviço pago com chave: sem ela, o sistema funciona só com as regras.
-- **Custo e tempo.** Cada análise faz uma chamada ao modelo e leva alguns segundos. Estimamos alguns centavos de dólar por análise, mas não medimos. Como a análise roda em todo cadastro de fornecedor, cadastros falsos em massa geram custo (há limite de requisições no cadastro).
+- **Dependência de serviços externos.** A BrasilAPI, a Minha Receita e o plano gratuito da Groq não têm garantia de disponibilidade. A base da Receita tem defasagem de atualização. O plano gratuito da Groq tem limite de requisições e de tokens por minuto e por dia. Sem a chave, com a Groq fora do ar ou acima do limite, o sistema funciona só com as regras.
+- **Tempo e limite de uso.** Nas execuções reais, cada análise levou de 1,4 s a 1,8 s e usou cerca de 1.100 tokens de entrada e de 450 a 560 de saída. No plano gratuito não há custo em dinheiro: o limite é o número de chamadas. Como a análise roda em todo cadastro de fornecedor, cadastros falsos em massa gastam esse limite (há limite de requisições no cadastro).
 - **Prompt injection.** Uma razão social ou nome digitado pode tentar dar ordens ao modelo. As defesas (dados delimitados, saída restrita a rótulos por schema, nota calculada pelo código, decisão humana) reduzem o risco, mas não o zeram.
-- **Privacidade.** Os dados públicos da empresa e o nome digitado são enviados a um provedor externo (Anthropic). Sócios, e-mail e telefone não são enviados.
+- **Privacidade.** Os dados públicos da empresa e o nome digitado são enviados a um provedor externo (Groq). Sócios, e-mail e telefone não são enviados.
 - **CNPJ alfanumérico.** A Receita Federal adotou o CNPJ com letras para novas inscrições a partir de julho de 2026. O cadastro do app e a validação de dígitos aceitam só números.
 - **Escopo da tela.** A API analisa caçambeiros e parceiros de reciclagem, mas o app só mostra a análise para caçambeiros.
 - **Análise em segundo plano sem fila.** Se o servidor reiniciar no meio da análise do cadastro, ela se perde. O administrador gera de novo com "Refazer análise".
@@ -247,8 +291,8 @@ Esse caso mostra por que o LLM é necessário. As regras confirmam que o CNPJ ex
 ### Possíveis melhorias
 
 1. **Avaliação com dados rotulados.** Montar de 50 a 100 CNPJs reais (caçambeiras, recicladoras e empresas de outros ramos), rotular à mão e medir precisão, revocação e F1 das duas classificações. Comparar com uma linha de base por lista fixa de CNAEs e por palavras-chave.
-2. **Exemplos no prompt (few-shot)** com os casos em que o modelo errar na avaliação.
-3. **Comparar modelos e níveis de esforço** na mesma avaliação, para achar o mais barato que mantém a qualidade.
+2. **Exemplos no prompt (few-shot)** com os casos em que o modelo errar na avaliação, começando pelos CNAEs de aluguel de equipamentos e de transporte de carga do item 5.1.
+3. **Comparar modelos e níveis de raciocínio** na mesma avaliação (por exemplo, o `openai/gpt-oss-20b`, menor e mais rápido), para achar o mais leve que mantém a qualidade.
 4. **Reanálise periódica** dos fornecedores já aprovados, para pegar empresas que foram baixadas depois da aprovação.
 5. **Mais fontes de dados:** licença ambiental estadual, cadastro de transportadores de resíduos da prefeitura e avaliações dos próprios clientes no app (análise de sentimentos dos comentários).
 6. **Fila de tarefas** para a análise do cadastro, com nova tentativa automática.

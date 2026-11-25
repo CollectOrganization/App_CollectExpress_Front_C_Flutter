@@ -2,10 +2,10 @@
 
 **Antes de gravar:**
 
-1. Na API, rodar `npm run migrate:analise-cnpj` e pôr `ANTHROPIC_API_KEY` no `.env` (local) ou nas variáveis do Render.
+1. Na API, rodar `npm run migrate:analise-cnpj` e pôr `GROQ_API_KEY` no `.env` (local) ou nas variáveis do Render.
 2. Separar três CNPJs reais e públicos:
-   - uma empresa de caçambas ativa;
-   - uma empresa ativa de outro ramo (padaria, mercado);
+   - uma empresa de caçambas ativa: a do relatório é a CM Locações de Caçambas, 17.223.825/0001-78;
+   - uma empresa ativa de outro ramo: o Banco do Brasil, 00.000.000/0001-91;
    - um CNPJ com situação BAIXADA.
 3. Cadastrar os três como fornecedor no app, com nomes parecidos com os da Receita. A análise já roda no cadastro.
 
@@ -18,7 +18,7 @@ Mostrar a lista de usuários pendentes no painel do admin.
 ## 2. Funcionando (0:30 a 2:00)
 
 - Abrir o cadastro da **empresa de caçambas** e tocar em "Análise do CNPJ com IA". Mostrar a nota, "Recomendo aprovar", a seção "Como a nota foi calculada", a justificativa da atividade (citar que o CNAE não tem a palavra "caçamba") e o parecer.
-- Abrir o da **padaria**: atividade incompatível, "Recomendo recusar".
+- Abrir o do **banco**: atividade incompatível, "Recomendo recusar".
 - Abrir o **CNPJ baixado**: reprovado pela regra, sem chamar a IA.
 - Tocar em "Refazer análise" em um deles para mostrar a chamada ao vivo.
 - Aprovar o primeiro pelo próprio sheet.
@@ -31,7 +31,7 @@ Abrir `CollectExpressAPI/src/services/analiseCnpjService.js`:
 2. `avaliarRegras`: situação cadastral e tempo de abertura, feitos por regra.
 3. `INSTRUCOES`: o prompt, com os rótulos de atividade e de nome e a defesa contra prompt injection.
 4. `ESQUEMA_RESPOSTA`: o JSON Schema que obriga o modelo a devolver só os rótulos permitidos.
-5. `analisarTextoComIa`: a chamada ao Claude (modelo, esforço baixo, saída estruturada, fallback).
+5. `analisarTextoComIa` e `chamarGroqPorHttp`: a chamada à Groq (modelo `openai/gpt-oss-120b`, temperatura 0, saída em JSON Schema estrito) e o tratamento de erros.
 6. `PESOS` e `recomendar`: a nota vem de pesos fixos, e não do LLM.
 
 Depois, de relance:

@@ -68,7 +68,7 @@ const _analiseComIa = {
     'uf': 'SP',
   },
   'fonte': 'BrasilAPI',
-  'ia': {'usada': true, 'modelo': 'claude-opus-5-5', 'motivo': null},
+  'ia': {'usada': true, 'modelo': 'openai/gpt-oss-120b', 'motivo': null},
   'gerado_em': '2026-11-25T15:00:00.000Z',
 };
 
@@ -212,7 +212,7 @@ void main() {
             'usada': false,
             'modelo': null,
             'motivo':
-                'IA não configurada: defina ANTHROPIC_API_KEY no .env da API.',
+                'IA não configurada: defina GROQ_API_KEY no .env da API.',
           },
         },
       });
@@ -221,7 +221,7 @@ void main() {
     expect(find.text('–'), findsOneWidget);
     expect(find.text('Conferir antes de aprovar'), findsOneWidget);
     expect(
-      find.text('IA não configurada: defina ANTHROPIC_API_KEY no .env da API.'),
+      find.text('IA não configurada: defina GROQ_API_KEY no .env da API.'),
       findsOneWidget,
     );
     expect(find.text('Parecer'), findsOneWidget);
