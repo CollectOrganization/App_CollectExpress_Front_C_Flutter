@@ -8,8 +8,10 @@ import '../../../core/models/json_parsing.dart';
 import '../../../core/models/pagina.dart';
 import '../../../core/models/usuario.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/api_providers.dart';
 import '../domain/models/admin_dashboard.dart';
+import '../domain/models/analise_cnpj.dart';
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
   return AdminRepository(ref.watch(apiClientProvider));
@@ -74,6 +76,29 @@ class AdminRepository {
       enderecos: parseList(json['enderecos'], Endereco.fromJson),
       pedidos: parseList(json['pedidos'], Aluguel.fromJson),
     );
+  }
+
+  /// Última análise de CNPJ do fornecedor, ou `null` se ainda não existe
+  /// (a API já gera uma sozinha logo depois do cadastro).
+  Future<AnaliseCnpj?> analiseCnpjSalva(String usuarioId) async {
+    try {
+      final data = await _api.get('/usuarios/$usuarioId/analise-cnpj');
+      return AnaliseCnpj.fromJson(parseMap(data) ?? const {});
+    } on ApiException catch (error) {
+      if (error.code == 'ANALISE_NAO_ENCONTRADA') return null;
+      rethrow;
+    }
+  }
+
+  /// Consulta a Receita e roda a IA de novo. Pode levar alguns segundos
+  /// por causa do LLM, por isso o limite de espera maior.
+  Future<AnaliseCnpj> gerarAnaliseCnpj(String usuarioId) async {
+    final data = await _api.post(
+      '/usuarios/$usuarioId/analise-cnpj',
+      receiveTimeout: const Duration(seconds: 90),
+    );
+
+    return AnaliseCnpj.fromJson(parseMap(data) ?? const {});
   }
 
   /// Cria outro administrador. A senha precisa ter 8+ caracteres, com

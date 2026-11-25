@@ -14,6 +14,7 @@ import '../../../../core/widgets/async_value_view.dart';
 import '../../../auth/data/sessao_provider.dart';
 import '../../../auth/presentation/validacao_senha.dart';
 import '../../data/admin_repository.dart';
+import '../widgets/analise_cnpj_sheet.dart';
 
 import '../../../../core/widgets/app_bottom_navigation.dart';
 
@@ -397,6 +398,20 @@ class _GestaoUsuariosPageState extends ConsumerState<GestaoUsuariosPage> {
                   isThreeLine: true,
                 ),
                 const Divider(),
+                if (usuario.isCacambeiro)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.auto_awesome,
+                      color: AppColors.green,
+                    ),
+                    title: const Text('Análise do CNPJ com IA'),
+                    subtitle: const Text('Dados da Receita, nota e parecer'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _abrirAnaliseCnpj(usuario);
+                    },
+                  ),
                 if (bloqueio != null)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -449,6 +464,14 @@ class _GestaoUsuariosPageState extends ConsumerState<GestaoUsuariosPage> {
     if (novoStatus == null || !mounted) return;
 
     await _alterarStatus(usuario, novoStatus);
+  }
+
+  /// Num cadastro pendente, aprovar ou recusar dali segue o fluxo normal.
+  Future<void> _abrirAnaliseCnpj(Usuario usuario) async {
+    final status = await showAnaliseCnpjSheet(context, usuario);
+    if (status == null || !mounted) return;
+
+    await _alterarStatus(usuario, status);
   }
 
   Future<void> _alterarStatus(Usuario usuario, StatusUsuario novoStatus) async {

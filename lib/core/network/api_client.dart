@@ -61,8 +61,21 @@ class ApiClient {
     return _send('GET', path, query: query, auth: auth);
   }
 
-  Future<dynamic> post(String path, {Object? data, bool auth = true}) {
-    return _send('POST', path, data: data, auth: auth);
+  /// [receiveTimeout] substitui o limite padrão para rotas demoradas
+  /// (ex.: a análise de CNPJ, que espera o LLM responder).
+  Future<dynamic> post(
+    String path, {
+    Object? data,
+    bool auth = true,
+    Duration? receiveTimeout,
+  }) {
+    return _send(
+      'POST',
+      path,
+      data: data,
+      auth: auth,
+      receiveTimeout: receiveTimeout,
+    );
   }
 
   Future<dynamic> put(String path, {Object? data}) {
@@ -83,6 +96,7 @@ class ApiClient {
     Object? data,
     Map<String, dynamic>? query,
     bool auth = true,
+    Duration? receiveTimeout,
   }) async {
     try {
       final response = await _dio.request<dynamic>(
@@ -91,6 +105,7 @@ class ApiClient {
         queryParameters: query,
         options: Options(
           method: method,
+          receiveTimeout: receiveTimeout,
           extra: {if (!auth) AuthInterceptor.skipAuth: true},
         ),
       );
